@@ -1,4 +1,11 @@
-import YTDlpWrap from 'yt-dlp-wrap'
+// yt-dlp-wrap is CommonJS with `module.exports.default = YTDlpWrap`.
+// We externalize it from the Vite bundle, so the default-import dance
+// produces a namespace object rather than the class itself. Unwrap manually.
+import YTDlpWrapImport from 'yt-dlp-wrap'
+const YTDlpWrap: typeof YTDlpWrapImport =
+  (YTDlpWrapImport as unknown as { default?: typeof YTDlpWrapImport }).default ??
+  YTDlpWrapImport
+
 import { app } from 'electron'
 import { promises as fs } from 'fs'
 import { existsSync } from 'fs'
@@ -49,9 +56,9 @@ function resolveYtDlpPath(): string {
   )
 }
 
-let ytDlpInstance: YTDlpWrap | null = null
+let ytDlpInstance: InstanceType<typeof YTDlpWrap> | null = null
 
-function getYtDlp(): YTDlpWrap {
+function getYtDlp(): InstanceType<typeof YTDlpWrap> {
   if (ytDlpInstance) return ytDlpInstance
   const binPath = resolveYtDlpPath()
   console.log('[youtube] using yt-dlp at', binPath)
