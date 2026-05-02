@@ -1,5 +1,7 @@
-import ytdl from '@distube/ytdl-core'
-import { createWriteStream, promises as fs } from 'fs'
+import YTDlpWrap from 'yt-dlp-wrap'
+import { app } from 'electron'
+import { promises as fs } from 'fs'
+import { existsSync } from 'fs'
 import { join } from 'path'
 
 export interface YouTubeDownloadResult {
@@ -7,66 +9,77 @@ export interface YouTubeDownloadResult {
   title: string
 }
 
+const YT_URL_RE = /^(https?:\/\/)?(www\.|m\.)?(youtube\.com|youtu\.be)\//i
+
 function sanitizeFilename(name: string): string {
-  const cleaned = name.replace(/[<>:"/\\|?*]/g, '_').trim()
+  const cleaned = name.replace(/[<>:"/\\|?*\n\r\t]/g, '_').trim()
   return cleaned || 'youtube_video'
+}
+
+let ytDlpInstance: YTDlpWrap | null = null
+
+async function getYtDlp(): Promise<YTDlpWrap> {
+  if (ytDlpInstance) return ytDlpInstance
+
+  // Persist the binary in userData so it survives across app launches.
+  const binDir = join(app.getPath('userData'), 'bin')
+  await fs.mkdir(binDir, { recursive: true })
+  const binName = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp'
+  const binPath = join(binDir, binName)
+
+  if (!existsSync(binPath)) {
+    console.log('[youtube] downloading yt-dlp binary to', binPath)
+    await YTDlpWrap.downloadFromGithub(binPath)
+    if (process.platform !== 'win32') {
+      await fs.chmod(binPath, 0o755)
+    }
+  }
+
+  ytDlpInstance = new YTDlpWrap(binPath)
+  return ytDlpInstance
 }
 
 /**
  * Download a YouTube video to disk and return the local path + title.
+ * Uses yt-dlp under the hood — far more reliable than pure-JS ytdl-core
+ * libraries against YouTube's frequent player changes.
  */
 export async function downloadYouTubeVideo(
   url: string,
   destDir: string
 ): Promise<YouTubeDownloadResult> {
-  if (!ytdl.validateURL(url)) {
+  if (!YT_URL_RE.test(url)) {
     throw new Error('Invalid YouTube URL')
   }
 
-  const info = await ytdl.getInfo(url)
-  const title = info.videoDetails?.title ?? 'youtube_video'
-  const safeTitle = sanitizeFilename(title)
-
+  const ytDlp = await getYtDlp()
   await fs.mkdir(destDir, { recursive: true })
+
+  // 1. Fetch metadata (title) without downloading
+  const metaJson = await ytDlp.execPromise([url, '--dump-json', '--no-warnings'])
+  const meta = JSON.parse(metaJson) as { title?: string; id?: string }
+  const title = meta.title ?? meta.id ?? 'youtube_video'
+  const safeTitle = sanitizeFilename(title)
   const filePath = join(destDir, `${safeTitle}.mp4`)
 
-  // We only need frames for visual analysis, so audio is unnecessary.
-  // Try in order: combined a+v (rare, usually 360p), then video-only (best),
-  // then any format with a video stream. ytdl.chooseFormat THROWS on no match,
-  // so each tier must be guarded.
-  const tryChoose = (
-    opts: Parameters<typeof ytdl.chooseFormat>[1]
-  ): ytdl.videoFormat | null => {
-    try {
-      return ytdl.chooseFormat(info.formats, opts)
-    } catch {
-      return null
-    }
+  // 2. Download. Format selection rules:
+  //   - prefer best mp4 with both audio+video already merged
+  //   - else best mp4 video-only (we don't need audio for visual analysis)
+  //   - else best of anything, remuxed to mp4
+  console.log(`[youtube] downloading "${title}" -> ${filePath}`)
+  await ytDlp.execPromise([
+    url,
+    '-f',
+    'best[ext=mp4]/bv*[ext=mp4]/best',
+    '-o',
+    filePath,
+    '--no-warnings',
+    '--no-playlist'
+  ])
+
+  if (!existsSync(filePath)) {
+    throw new Error(`yt-dlp completed but output file is missing: ${filePath}`)
   }
-
-  const format =
-    tryChoose({ quality: 'highest', filter: 'audioandvideo' }) ??
-    tryChoose({ quality: 'highestvideo', filter: 'videoonly' }) ??
-    tryChoose({ quality: 'highest', filter: (f) => Boolean(f.hasVideo) })
-
-  if (!format) {
-    const summary = info.formats
-      .slice(0, 5)
-      .map((f) => `${f.qualityLabel ?? f.quality ?? '?'}/${f.container ?? '?'}`)
-      .join(', ')
-    throw new Error(
-      `No playable video format found. First few available formats: ${summary || '(none)'}`
-    )
-  }
-
-  await new Promise<void>((resolve, reject) => {
-    const stream = ytdl.downloadFromInfo(info, { format })
-    const out = createWriteStream(filePath)
-    stream.on('error', (err) => reject(err))
-    out.on('error', (err) => reject(err))
-    out.on('finish', () => resolve())
-    stream.pipe(out)
-  })
 
   return { filePath, title }
 }

@@ -10,8 +10,7 @@ export default defineConfig({
           'fluent-ffmpeg',
           '@ffprobe-installer/ffprobe',
           '@ffmpeg-installer/ffmpeg',
-          '@distube/ytdl-core',
-          'undici'
+          'yt-dlp-wrap'
         ]
       }
     }
