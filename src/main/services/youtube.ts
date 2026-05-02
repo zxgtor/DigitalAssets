@@ -16,33 +16,52 @@ function sanitizeFilename(name: string): string {
   return cleaned || 'youtube_video'
 }
 
-let ytDlpInstance: YTDlpWrap | null = null
-
-async function getYtDlp(): Promise<YTDlpWrap> {
-  if (ytDlpInstance) return ytDlpInstance
-
-  // Persist the binary in userData so it survives across app launches.
-  const binDir = join(app.getPath('userData'), 'bin')
-  await fs.mkdir(binDir, { recursive: true })
+/**
+ * Locate the bundled yt-dlp binary.
+ * - Dev: <project>/resources/bin/yt-dlp.exe
+ * - Packaged: <resources>/app.asar.unpacked/resources/bin/yt-dlp.exe
+ *   (electron-builder asarUnpack: 'resources/**' takes care of this)
+ */
+function resolveYtDlpPath(): string {
   const binName = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp'
-  const binPath = join(binDir, binName)
 
-  if (!existsSync(binPath)) {
-    console.log('[youtube] downloading yt-dlp binary to', binPath)
-    await YTDlpWrap.downloadFromGithub(binPath)
-    if (process.platform !== 'win32') {
-      await fs.chmod(binPath, 0o755)
-    }
+  const candidates: string[] = []
+  if (app.isPackaged) {
+    // Unpacked resources sit alongside app.asar
+    candidates.push(
+      join(process.resourcesPath, 'app.asar.unpacked', 'resources', 'bin', binName),
+      join(process.resourcesPath, 'resources', 'bin', binName),
+      join(process.resourcesPath, 'bin', binName)
+    )
+  } else {
+    candidates.push(
+      join(app.getAppPath(), 'resources', 'bin', binName),
+      join(process.cwd(), 'resources', 'bin', binName)
+    )
   }
 
+  for (const p of candidates) {
+    if (existsSync(p)) return p
+  }
+  throw new Error(
+    `yt-dlp binary not found. Looked in:\n  ${candidates.join('\n  ')}\n` +
+      `Make sure resources/bin/${binName} is committed and bundled.`
+  )
+}
+
+let ytDlpInstance: YTDlpWrap | null = null
+
+function getYtDlp(): YTDlpWrap {
+  if (ytDlpInstance) return ytDlpInstance
+  const binPath = resolveYtDlpPath()
+  console.log('[youtube] using yt-dlp at', binPath)
   ytDlpInstance = new YTDlpWrap(binPath)
   return ytDlpInstance
 }
 
 /**
  * Download a YouTube video to disk and return the local path + title.
- * Uses yt-dlp under the hood — far more reliable than pure-JS ytdl-core
- * libraries against YouTube's frequent player changes.
+ * Uses the yt-dlp binary bundled under resources/bin/.
  */
 export async function downloadYouTubeVideo(
   url: string,
@@ -52,7 +71,7 @@ export async function downloadYouTubeVideo(
     throw new Error('Invalid YouTube URL')
   }
 
-  const ytDlp = await getYtDlp()
+  const ytDlp = getYtDlp()
   await fs.mkdir(destDir, { recursive: true })
 
   // 1. Fetch metadata (title) without downloading
@@ -65,7 +84,7 @@ export async function downloadYouTubeVideo(
   // 2. Download. Format selection rules:
   //   - prefer best mp4 with both audio+video already merged
   //   - else best mp4 video-only (we don't need audio for visual analysis)
-  //   - else best of anything, remuxed to mp4
+  //   - else best of anything
   console.log(`[youtube] downloading "${title}" -> ${filePath}`)
   await ytDlp.execPromise([
     url,
