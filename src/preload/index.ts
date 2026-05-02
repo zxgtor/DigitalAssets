@@ -14,6 +14,35 @@ export interface ImageAnalysisResult {
   durationMs: number
 }
 
+export interface VideoKeyframeResult {
+  timeSec: number
+  thumbnailPath: string
+  prompt: string
+}
+
+export interface VideoAnalysisResult {
+  durationMs: number
+  model: string
+  duration: number
+  width: number
+  height: number
+  keyframes: VideoKeyframeResult[]
+  masterPrompt: string
+}
+
+export interface HistoryEntry {
+  id: string
+  kind: 'image' | 'video'
+  filePath: string
+  fileName: string
+  prompt: string
+  model?: string
+  durationSec?: number
+  frameCount?: number
+  durationMs?: number
+  createdAt: number
+}
+
 const api = {
   settings: {
     get: (): Promise<Settings> => ipcRenderer.invoke('settings:get'),
@@ -23,7 +52,15 @@ const api = {
   },
   analyze: {
     image: (filePath: string): Promise<ImageAnalysisResult> =>
-      ipcRenderer.invoke('analyze:image', { filePath })
+      ipcRenderer.invoke('analyze:image', { filePath }),
+    video: (filePath: string): Promise<VideoAnalysisResult> =>
+      ipcRenderer.invoke('analyze:video', { filePath })
+  },
+  history: {
+    list: (): Promise<HistoryEntry[]> => ipcRenderer.invoke('history:list'),
+    add: (entry: Omit<HistoryEntry, 'id'>): Promise<HistoryEntry> =>
+      ipcRenderer.invoke('history:add', entry),
+    clear: (): Promise<void> => ipcRenderer.invoke('history:clear')
   }
 }
 

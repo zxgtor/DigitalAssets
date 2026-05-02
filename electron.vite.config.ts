@@ -3,7 +3,13 @@ import { defineConfig } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
-  main: {},
+  main: {
+    build: {
+      rollupOptions: {
+        external: ['fluent-ffmpeg', '@ffprobe-installer/ffprobe', '@ffmpeg-installer/ffmpeg']
+      }
+    }
+  },
   preload: {},
   renderer: {
     resolve: {

@@ -5,8 +5,13 @@ import { AmbientGlow } from './components/AmbientGlow'
 import { DropView } from './views/DropView'
 import { AnalyzingView } from './views/AnalyzingView'
 import { ImageResultView } from './views/ImageResultView'
+import { VideoResultView } from './views/VideoResultView'
+import { SettingsView } from './views/SettingsView'
+import { HistoryView } from './views/HistoryView'
+import { WorkflowView } from './views/WorkflowView'
 import type {
   ImageAnalysisResult,
+  VideoAnalysisResult,
   MediaKind,
   OllamaStatus,
   SelectedFile,
@@ -43,6 +48,8 @@ function App(): React.JSX.Element {
   const [activeView, setActiveView] = useState<ViewName>('drop')
   const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null)
   const [imageResult, setImageResult] = useState<ImageAnalysisResult | null>(null)
+  const [videoResult, setVideoResult] = useState<VideoAnalysisResult | null>(null)
+  const [analyzeStatus, setAnalyzeStatus] = useState<string>('Analyzing...')
   const [ollamaStatus] = useState<OllamaStatus>('unknown')
 
   const handleFileSelected = useCallback(
@@ -64,6 +71,12 @@ function App(): React.JSX.Element {
         thumbnailUrl
       })
       setImageResult(null)
+      setVideoResult(null)
+      setAnalyzeStatus(
+        kind === 'video'
+          ? 'Extracting keyframes & analyzing each one'
+          : 'Extracting visual features'
+      )
       setActiveView('analyzing')
     },
     [selectedFile]
@@ -83,6 +96,7 @@ function App(): React.JSX.Element {
     }
     setSelectedFile(null)
     setImageResult(null)
+    setVideoResult(null)
     setActiveView('drop')
   }, [selectedFile])
 
@@ -90,24 +104,52 @@ function App(): React.JSX.Element {
     setActiveView('workflow')
   }, [])
 
-  // Kick off analysis when entering 'analyzing' view with an image file.
+  // Kick off analysis when entering 'analyzing' view.
   useEffect(() => {
     if (activeView !== 'analyzing' || !selectedFile) return
-    if (selectedFile.kind !== 'image') return
 
     let cancelled = false
     const run = async (): Promise<void> => {
       try {
-        const result = await window.api.analyze.image(selectedFile.filePath)
-        if (cancelled) return
-        setImageResult(result)
-        setActiveView('imageResult')
+        if (selectedFile.kind === 'image') {
+          const result = await window.api.analyze.image(selectedFile.filePath)
+          if (cancelled) return
+          setImageResult(result)
+          setActiveView('imageResult')
+          // persist to history (fire-and-forget)
+          void window.api.history.add({
+            kind: 'image',
+            filePath: selectedFile.filePath,
+            fileName: selectedFile.fileName,
+            prompt: result.prompt,
+            model: result.model,
+            durationMs: result.durationMs,
+            createdAt: Date.now()
+          })
+        } else {
+          const result = await window.api.analyze.video(selectedFile.filePath)
+          if (cancelled) return
+          setVideoResult(result)
+          setActiveView('videoResult')
+          // persist to history (fire-and-forget)
+          void window.api.history.add({
+            kind: 'video',
+            filePath: selectedFile.filePath,
+            fileName: selectedFile.fileName,
+            prompt: result.masterPrompt,
+            model: result.model,
+            durationSec: result.duration,
+            frameCount: result.keyframes.length,
+            durationMs: result.durationMs,
+            createdAt: Date.now()
+          })
+        }
       } catch (err) {
         if (cancelled) return
         const msg = err instanceof Error ? err.message : String(err)
-        console.error('Image analysis failed', err)
+        console.error('Analysis failed', err)
         // eslint-disable-next-line no-alert
-        alert(`Image analysis failed:\n\n${msg}`)
+        alert(`Analysis failed:\n\n${msg}`)
         setActiveView('drop')
       }
     }
@@ -127,6 +169,7 @@ function App(): React.JSX.Element {
         <AnalyzingView
           fileName={selectedFile?.fileName ?? ''}
           thumbnailUrl={selectedFile?.thumbnailUrl}
+          status={analyzeStatus}
         />
       )
       break
@@ -145,16 +188,26 @@ function App(): React.JSX.Element {
         )
       break
     case 'videoResult':
-      content = <Placeholder label="Video result (coming soon)" />
+      content =
+        videoResult && selectedFile ? (
+          <VideoResultView
+            result={videoResult}
+            fileName={selectedFile.fileName}
+            onNew={handleNew}
+            onWorkflow={handleWorkflow}
+          />
+        ) : (
+          <Placeholder label="No result available" />
+        )
       break
     case 'workflow':
-      content = <Placeholder label="Workflow (coming soon)" />
+      content = <WorkflowView />
       break
     case 'history':
-      content = <Placeholder label="History (coming soon)" />
+      content = <HistoryView />
       break
     case 'settings':
-      content = <Placeholder label="Settings (coming soon)" />
+      content = <SettingsView />
       break
     default:
       content = <Placeholder label="Unknown view" />

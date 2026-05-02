@@ -17,16 +17,20 @@ export interface ImageAnalysisResult {
   durationMs: number
 }
 
-export interface VideoAnalysisResult {
-  kind: 'video'
-  filePath: string
-  fileName: string
+export interface VideoKeyframeResult {
+  timeSec: number
+  thumbnailPath: string
   prompt: string
-  description?: string
-  tags?: string[]
-  durationSec?: number
-  frameCount?: number
-  createdAt: number
+}
+
+export interface VideoAnalysisResult {
+  durationMs: number
+  model: string
+  duration: number
+  width: number
+  height: number
+  keyframes: VideoKeyframeResult[]
+  masterPrompt: string
 }
 
 export type AnalysisResult = ImageAnalysisResult | VideoAnalysisResult
