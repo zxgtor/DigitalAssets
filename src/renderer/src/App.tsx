@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import './styles/globals.css'
 import { Sidebar } from './components/Sidebar'
 import { AmbientGlow } from './components/AmbientGlow'
@@ -143,21 +143,34 @@ function App(): React.JSX.Element {
     setActiveView(workflowKind === 'image' ? 'imageResult' : 'videoResult')
   }, [workflowKind])
 
+  const ollamaUrlRef = useRef<string>('http://localhost:11434')
+
+  // Sync URL ref whenever settings load/change — polling reads from this ref
+  useEffect(() => {
+    window.api.settings.get()
+      .then((s) => {
+        ollamaUrlRef.current = (s.ollamaBaseUrl ?? 'http://localhost:11434').replace(/\/$/, '')
+      })
+      .catch(() => { /* keep default */ })
+  }, [])
+
   // Poll Ollama health endpoint every 20 seconds.
   useEffect(() => {
+    let active = true
     const check = async (): Promise<void> => {
       try {
-        const settings = await window.api.settings.get()
-        const base = (settings.ollamaBaseUrl ?? 'http://localhost:11434').replace(/\/$/, '')
-        const res = await fetch(`${base}/api/tags`, { method: 'GET' })
-        setOllamaStatus(res.ok ? 'connected' : 'error')
+        const res = await fetch(`${ollamaUrlRef.current}/api/tags`)
+        if (active) setOllamaStatus(res.ok ? 'connected' : 'error')
       } catch {
-        setOllamaStatus('error')
+        if (active) setOllamaStatus('error')
       }
     }
     void check()
     const id = setInterval(() => void check(), 20_000)
-    return () => clearInterval(id)
+    return () => {
+      active = false
+      clearInterval(id)
+    }
   }, [])
 
   // Kick off analysis when entering 'analyzing' view.
@@ -302,7 +315,7 @@ function App(): React.JSX.Element {
         }}
       >
         <AmbientGlow />
-        <div key={activeView} className="view-fade" style={{ height: '100%' }}>
+        <div key={activeView} className="view-fade">
           {content}
         </div>
       </main>

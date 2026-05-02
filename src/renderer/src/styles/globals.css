@@ -113,5 +113,6 @@ a {
 }
 
 .view-fade {
+  height: 100%;
   animation: fadeIn 200ms ease-out both;
 }
