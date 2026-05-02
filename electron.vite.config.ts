@@ -6,7 +6,13 @@ export default defineConfig({
   main: {
     build: {
       rollupOptions: {
-        external: ['fluent-ffmpeg', '@ffprobe-installer/ffprobe', '@ffmpeg-installer/ffmpeg']
+        external: [
+          'fluent-ffmpeg',
+          '@ffprobe-installer/ffprobe',
+          '@ffmpeg-installer/ffmpeg',
+          '@distube/ytdl-core',
+          'undici'
+        ]
       }
     }
   },
