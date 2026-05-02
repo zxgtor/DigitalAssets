@@ -15,7 +15,9 @@ import type {
   MediaKind,
   OllamaStatus,
   SelectedFile,
-  ViewName
+  ViewName,
+  WorkflowJSON,
+  WorkflowKind
 } from './types'
 
 function basename(p: string): string {
@@ -51,6 +53,8 @@ function App(): React.JSX.Element {
   const [videoResult, setVideoResult] = useState<VideoAnalysisResult | null>(null)
   const [analyzeStatus, setAnalyzeStatus] = useState<string>('Analyzing...')
   const [ollamaStatus] = useState<OllamaStatus>('unknown')
+  const [workflow, setWorkflow] = useState<WorkflowJSON | null>(null)
+  const [workflowKind, setWorkflowKind] = useState<WorkflowKind>('image')
 
   const handleFileSelected = useCallback(
     (filePath: string, kind: MediaKind, file?: File) => {
@@ -100,9 +104,44 @@ function App(): React.JSX.Element {
     setActiveView('drop')
   }, [selectedFile])
 
-  const handleWorkflow = useCallback(() => {
-    setActiveView('workflow')
-  }, [])
+  const handleImageWorkflow = useCallback(async () => {
+    if (!imageResult) return
+    try {
+      const wf = await window.api.workflow.buildImage({ prompt: imageResult.prompt })
+      setWorkflow(wf)
+      setWorkflowKind('image')
+      setActiveView('workflow')
+    } catch (err) {
+      console.error('buildImage failed', err)
+      // eslint-disable-next-line no-alert
+      alert(`Workflow build failed:\n\n${err instanceof Error ? err.message : String(err)}`)
+    }
+  }, [imageResult])
+
+  const handleVideoWorkflow = useCallback(async () => {
+    if (!videoResult) return
+    try {
+      const wf = await window.api.workflow.buildVideo({
+        masterPrompt: videoResult.masterPrompt,
+        keyframes: videoResult.keyframes.map((k) => ({
+          timeSec: k.timeSec,
+          prompt: k.prompt
+        })),
+        duration: videoResult.duration
+      })
+      setWorkflow(wf)
+      setWorkflowKind('video')
+      setActiveView('workflow')
+    } catch (err) {
+      console.error('buildVideo failed', err)
+      // eslint-disable-next-line no-alert
+      alert(`Workflow build failed:\n\n${err instanceof Error ? err.message : String(err)}`)
+    }
+  }, [videoResult])
+
+  const handleWorkflowBack = useCallback(() => {
+    setActiveView(workflowKind === 'image' ? 'imageResult' : 'videoResult')
+  }, [workflowKind])
 
   // Kick off analysis when entering 'analyzing' view.
   useEffect(() => {
@@ -181,7 +220,7 @@ function App(): React.JSX.Element {
             fileName={selectedFile.fileName}
             thumbnailUrl={selectedFile.thumbnailUrl}
             onNew={handleNew}
-            onWorkflow={handleWorkflow}
+            onWorkflow={handleImageWorkflow}
           />
         ) : (
           <Placeholder label="No result available" />
@@ -194,14 +233,23 @@ function App(): React.JSX.Element {
             result={videoResult}
             fileName={selectedFile.fileName}
             onNew={handleNew}
-            onWorkflow={handleWorkflow}
+            onWorkflow={handleVideoWorkflow}
           />
         ) : (
           <Placeholder label="No result available" />
         )
       break
     case 'workflow':
-      content = <WorkflowView />
+      content = workflow ? (
+        <WorkflowView
+          kind={workflowKind}
+          workflow={workflow}
+          fileName={selectedFile?.fileName ?? 'workflow'}
+          onBack={handleWorkflowBack}
+        />
+      ) : (
+        <Placeholder label="No workflow generated" />
+      )
       break
     case 'history':
       content = <HistoryView />

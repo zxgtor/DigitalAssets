@@ -30,6 +30,15 @@ export interface VideoAnalysisResult {
   masterPrompt: string
 }
 
+export type WorkflowJSON = Record<
+  string,
+  { class_type: string; inputs: Record<string, unknown> }
+>
+
+export type WorkflowSaveResult =
+  | { saved: true; path: string }
+  | { saved: false; canceled: true }
+
 export interface HistoryEntry {
   id: string
   kind: 'image' | 'video'
@@ -61,6 +70,19 @@ const api = {
     add: (entry: Omit<HistoryEntry, 'id'>): Promise<HistoryEntry> =>
       ipcRenderer.invoke('history:add', entry),
     clear: (): Promise<void> => ipcRenderer.invoke('history:clear')
+  },
+  workflow: {
+    buildImage: (args: { prompt: string; negativePrompt?: string }): Promise<WorkflowJSON> =>
+      ipcRenderer.invoke('workflow:buildImage', args),
+    buildVideo: (args: {
+      masterPrompt: string
+      keyframes: Array<{ timeSec: number; prompt: string }>
+      duration: number
+    }): Promise<WorkflowJSON> => ipcRenderer.invoke('workflow:buildVideo', args),
+    save: (args: {
+      workflow: WorkflowJSON
+      defaultFileName: string
+    }): Promise<WorkflowSaveResult> => ipcRenderer.invoke('workflow:save', args)
   }
 }
 

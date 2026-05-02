@@ -51,56 +51,6 @@ export interface GeneratePromptOptions {
   systemPrompt?: string
 }
 
-export const VIDEO_FRAME_INSTRUCTION = `Analyze this video frame and describe what you see.
-Be concise: note the subject, setting, action, lighting, and mood in 1-2 sentences.
-Do not include any explanation or labels — just the description.`
-
-export const VIDEO_SYNTHESIS_INSTRUCTION = `You are given descriptions of keyframes from a video.
-Generate a single detailed Stable Diffusion prompt that best captures the overall visual style, subject, and mood of the video.
-Output only the prompt as a single line of comma-separated tags.
-Include: subject, style, lighting, composition, camera/lens, mood, color palette, quality tags.
-Do not include any explanation, markdown, or labels — only the prompt.`
-
-export interface GenerateVideoPromptOptions {
-  baseUrl: string
-  model: string
-  frameBase64List: string[]
-}
-
-export async function generatePromptFromVideo(opts: GenerateVideoPromptOptions): Promise<string> {
-  const { baseUrl, model, frameBase64List } = opts
-
-  // Describe each frame individually
-  const descriptions = await Promise.all(
-    frameBase64List.map((b64) =>
-      generatePromptFromImage({
-        baseUrl,
-        model,
-        imageBase64: b64,
-        systemPrompt: VIDEO_FRAME_INSTRUCTION
-      })
-    )
-  )
-
-  // Synthesize a single SD prompt from all frame descriptions
-  const combined = descriptions.map((d, i) => `Frame ${i + 1}: ${d}`).join('\n')
-  const synthBody = {
-    model,
-    prompt: `${VIDEO_SYNTHESIS_INSTRUCTION}\n\n${combined}`,
-    stream: false
-  }
-  const url = `${trimBaseUrl(baseUrl)}/api/generate`
-  const res = await axios.post<GenerateResponse>(url, synthBody, {
-    timeout: REQUEST_TIMEOUT_MS,
-    headers: { 'Content-Type': 'application/json' }
-  })
-  const text = (res.data?.response ?? '').trim()
-  if (!text) {
-    throw new Error('Ollama returned an empty response during synthesis')
-  }
-  return text
-}
-
 export interface GenerateTextOptions {
   baseUrl: string
   model: string

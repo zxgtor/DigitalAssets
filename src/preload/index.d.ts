@@ -29,6 +29,15 @@ export interface VideoAnalysisResult {
   masterPrompt: string
 }
 
+export type WorkflowJSON = Record<
+  string,
+  { class_type: string; inputs: Record<string, unknown> }
+>
+
+export type WorkflowSaveResult =
+  | { saved: true; path: string }
+  | { saved: false; canceled: true }
+
 export interface HistoryEntry {
   id: string
   kind: 'image' | 'video'
@@ -56,6 +65,18 @@ export interface Api {
     list: () => Promise<HistoryEntry[]>
     add: (entry: Omit<HistoryEntry, 'id'>) => Promise<HistoryEntry>
     clear: () => Promise<void>
+  }
+  workflow: {
+    buildImage: (args: { prompt: string; negativePrompt?: string }) => Promise<WorkflowJSON>
+    buildVideo: (args: {
+      masterPrompt: string
+      keyframes: Array<{ timeSec: number; prompt: string }>
+      duration: number
+    }) => Promise<WorkflowJSON>
+    save: (args: {
+      workflow: WorkflowJSON
+      defaultFileName: string
+    }) => Promise<WorkflowSaveResult>
   }
 }
 

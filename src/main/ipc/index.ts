@@ -3,6 +3,7 @@ import { getSettings, resetSettings, setSettings, Settings } from '../store'
 import { registerAnalyzeHandlers } from './analyze'
 import { registerVideoHandlers } from './video'
 import { registerHistoryHandlers } from './history'
+import { registerWorkflowHandlers } from './workflow'
 
 export function registerIpcHandlers(): void {
   ipcMain.handle('settings:get', () => {
@@ -20,4 +21,5 @@ export function registerIpcHandlers(): void {
   registerAnalyzeHandlers()
   registerVideoHandlers()
   registerHistoryHandlers()
+  registerWorkflowHandlers()
 }

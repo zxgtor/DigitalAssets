@@ -35,6 +35,13 @@ export interface VideoAnalysisResult {
 
 export type AnalysisResult = ImageAnalysisResult | VideoAnalysisResult
 
+export type WorkflowJSON = Record<
+  string,
+  { class_type: string; inputs: Record<string, unknown> }
+>
+
+export type WorkflowKind = 'image' | 'video'
+
 export interface SelectedFile {
   filePath: string
   fileName: string
