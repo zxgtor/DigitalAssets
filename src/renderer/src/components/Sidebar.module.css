@@ -1,0 +1,103 @@
+.sidebar {
+  width: 52px;
+  height: 100vh;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  background-color: rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 0;
+  position: relative;
+  z-index: 10;
+}
+
+.logo {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  background-color: rgba(255, 255, 255, 0.9);
+  color: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 12px;
+  margin-bottom: 18px;
+  user-select: none;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 1;
+  width: 100%;
+  align-items: center;
+}
+
+.navItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 44px;
+  padding: 6px 0;
+  border-radius: var(--radius-sm);
+  color: rgba(255, 255, 255, 0.28);
+  transition: color 120ms ease, background-color 120ms ease;
+  cursor: pointer;
+  background: none;
+  border: none;
+}
+
+.navItem:hover {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.navItem.active {
+  color: #fff;
+}
+
+.navItem.active .label {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.label {
+  font-size: 6.5px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: inherit;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.statusWrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 0;
+}
+
+.statusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.25);
+}
+
+.statusConnected {
+  background-color: var(--accent-success);
+  box-shadow: 0 0 6px rgba(74, 222, 128, 0.5);
+}
+
+.statusError {
+  background-color: var(--accent-error);
+  box-shadow: 0 0 6px rgba(248, 113, 113, 0.5);
+}

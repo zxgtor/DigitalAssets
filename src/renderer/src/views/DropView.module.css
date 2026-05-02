@@ -1,0 +1,71 @@
+.wrap {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  padding: 20px;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+.dropZone {
+  flex: 1;
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  cursor: pointer;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease;
+  text-align: center;
+  padding: 32px;
+}
+
+.dropZone:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.dragOver {
+  border-color: rgba(255, 255, 255, 0.5);
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.iconCircle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.title {
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.subtitle {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+  max-width: 280px;
+}
+
+.hiddenInput {
+  display: none;
+}
+
+.actions {
+  margin-top: 4px;
+}
