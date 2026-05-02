@@ -86,6 +86,30 @@ function App(): React.JSX.Element {
     [selectedFile]
   )
 
+  const handleYouTubeUrl = useCallback(
+    (url: string) => {
+      if (selectedFile?.thumbnailUrl) {
+        try {
+          URL.revokeObjectURL(selectedFile.thumbnailUrl)
+        } catch {
+          /* noop */
+        }
+      }
+      setSelectedFile({
+        filePath: url,
+        fileName: 'YouTube video',
+        kind: 'video',
+        thumbnailUrl: undefined,
+        youtubeUrl: url
+      })
+      setImageResult(null)
+      setVideoResult(null)
+      setAnalyzeStatus('Downloading YouTube video & extracting keyframes')
+      setActiveView('analyzing')
+    },
+    [selectedFile]
+  )
+
   const handleNavigate = useCallback((view: ViewName) => {
     setActiveView(view)
   }, [])
@@ -196,15 +220,26 @@ function App(): React.JSX.Element {
             createdAt: Date.now()
           })
         } else {
-          const result = await window.api.analyze.video(selectedFile.filePath)
+          const isYouTube = !!selectedFile.youtubeUrl
+          const result = isYouTube
+            ? await window.api.analyze.youtube(selectedFile.youtubeUrl as string)
+            : await window.api.analyze.video(selectedFile.filePath)
           if (cancelled) return
           setVideoResult(result)
+          const resolvedTitle = result.sourceTitle ?? selectedFile.fileName
+          if (isYouTube && result.sourceTitle) {
+            setSelectedFile((prev) =>
+              prev ? { ...prev, fileName: result.sourceTitle as string } : prev
+            )
+          }
           setActiveView('videoResult')
           // persist to history (fire-and-forget)
           void window.api.history.add({
             kind: 'video',
-            filePath: selectedFile.filePath,
-            fileName: selectedFile.fileName,
+            filePath: isYouTube
+              ? (result.sourceUrl ?? (selectedFile.youtubeUrl as string))
+              : selectedFile.filePath,
+            fileName: isYouTube ? (result.sourceTitle ?? 'YouTube video') : resolvedTitle,
             prompt: result.masterPrompt,
             model: result.model,
             durationSec: result.duration,
@@ -231,7 +266,9 @@ function App(): React.JSX.Element {
   let content: React.ReactNode
   switch (activeView) {
     case 'drop':
-      content = <DropView onFileSelected={handleFileSelected} />
+      content = (
+        <DropView onFileSelected={handleFileSelected} onYouTubeUrl={handleYouTubeUrl} />
+      )
       break
     case 'analyzing':
       content = (

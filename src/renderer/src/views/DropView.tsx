@@ -16,10 +16,16 @@ function detectKind(name: string): MediaKind | null {
 
 export interface DropViewProps {
   onFileSelected: (filePath: string, kind: MediaKind, file?: File) => void
+  onYouTubeUrl: (url: string) => void
 }
 
-export function DropView({ onFileSelected }: DropViewProps): React.JSX.Element {
+export function DropView({
+  onFileSelected,
+  onYouTubeUrl
+}: DropViewProps): React.JSX.Element {
   const [isDragOver, setIsDragOver] = useState(false)
+  const [urlValue, setUrlValue] = useState('')
+  const [urlError, setUrlError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const handleFile = useCallback(
@@ -72,6 +78,35 @@ export function DropView({ onFileSelected }: DropViewProps): React.JSX.Element {
     [handleFile]
   )
 
+  const submitUrl = useCallback(
+    (e?: React.SyntheticEvent) => {
+      e?.stopPropagation()
+      const trimmed = urlValue.trim()
+      if (!trimmed) {
+        setUrlError('Please paste a YouTube link')
+        return
+      }
+      setUrlError(null)
+      onYouTubeUrl(trimmed)
+      setUrlValue('')
+    },
+    [onYouTubeUrl, urlValue]
+  )
+
+  const onUrlKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        submitUrl(e)
+      }
+    },
+    [submitUrl]
+  )
+
+  const stopProp = useCallback((e: React.SyntheticEvent) => {
+    e.stopPropagation()
+  }, [])
+
   const cls = [styles.dropZone, isDragOver ? styles.dragOver : null].filter(Boolean).join(' ')
 
   return (
@@ -98,6 +133,38 @@ export function DropView({ onFileSelected }: DropViewProps): React.JSX.Element {
             + Upload File
           </PillButton>
         </div>
+
+        <div
+          className={styles.urlSection}
+          onClick={stopProp}
+          onMouseDown={stopProp}
+          role="presentation"
+        >
+          <div className={styles.divider} aria-hidden="true">
+            <span className={styles.dividerLine} />
+            <span className={styles.dividerText}>OR</span>
+            <span className={styles.dividerLine} />
+          </div>
+          <div className={styles.urlRow}>
+            <input
+              type="text"
+              className={styles.urlInput}
+              placeholder="Paste a YouTube link…"
+              value={urlValue}
+              onChange={(e) => {
+                setUrlValue(e.target.value)
+                if (urlError) setUrlError(null)
+              }}
+              onKeyDown={onUrlKeyDown}
+              onClick={stopProp}
+            />
+            <PillButton variant="ghost" onClick={submitUrl}>
+              Analyze URL
+            </PillButton>
+          </div>
+          {urlError ? <div className={styles.urlError}>{urlError}</div> : null}
+        </div>
+
         <input
           ref={inputRef}
           type="file"

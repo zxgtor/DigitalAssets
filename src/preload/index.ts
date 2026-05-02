@@ -28,6 +28,8 @@ export interface VideoAnalysisResult {
   height: number
   keyframes: VideoKeyframeResult[]
   masterPrompt: string
+  sourceTitle?: string
+  sourceUrl?: string
 }
 
 export type WorkflowJSON = Record<
@@ -63,7 +65,9 @@ const api = {
     image: (filePath: string): Promise<ImageAnalysisResult> =>
       ipcRenderer.invoke('analyze:image', { filePath }),
     video: (filePath: string): Promise<VideoAnalysisResult> =>
-      ipcRenderer.invoke('analyze:video', { filePath })
+      ipcRenderer.invoke('analyze:video', { filePath }),
+    youtube: (url: string): Promise<VideoAnalysisResult> =>
+      ipcRenderer.invoke('analyze:youtube', { url })
   },
   history: {
     list: (): Promise<HistoryEntry[]> => ipcRenderer.invoke('history:list'),

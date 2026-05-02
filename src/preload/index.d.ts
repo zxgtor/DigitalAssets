@@ -27,6 +27,8 @@ export interface VideoAnalysisResult {
   height: number
   keyframes: VideoKeyframeResult[]
   masterPrompt: string
+  sourceTitle?: string
+  sourceUrl?: string
 }
 
 export type WorkflowJSON = Record<
@@ -60,6 +62,7 @@ export interface Api {
   analyze: {
     image: (filePath: string) => Promise<ImageAnalysisResult>
     video: (filePath: string) => Promise<VideoAnalysisResult>
+    youtube: (url: string) => Promise<VideoAnalysisResult>
   }
   history: {
     list: () => Promise<HistoryEntry[]>

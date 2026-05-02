@@ -69,3 +69,75 @@
 .actions {
   margin-top: 4px;
 }
+
+.urlSection {
+  margin-top: 20px;
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  cursor: default;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  opacity: 0.6;
+}
+
+.dividerLine {
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.dividerText {
+  color: var(--text-muted);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.urlRow {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.urlInput {
+  flex: 1;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  padding: 8px 14px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+
+.urlInput::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.urlInput:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.urlInput:focus {
+  border-color: rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.urlError {
+  color: #f87171;
+  font-size: 11px;
+  text-align: left;
+  padding-left: 4px;
+}

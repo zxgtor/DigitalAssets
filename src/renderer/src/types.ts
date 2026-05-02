@@ -31,6 +31,8 @@ export interface VideoAnalysisResult {
   height: number
   keyframes: VideoKeyframeResult[]
   masterPrompt: string
+  sourceTitle?: string
+  sourceUrl?: string
 }
 
 export type AnalysisResult = ImageAnalysisResult | VideoAnalysisResult
@@ -47,4 +49,5 @@ export interface SelectedFile {
   fileName: string
   kind: MediaKind
   thumbnailUrl?: string
+  youtubeUrl?: string
 }
