@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import { getSettings, resetSettings, setSettings, Settings } from '../store'
+import { registerAnalyzeHandlers } from './analyze'
 
 export function registerIpcHandlers(): void {
   ipcMain.handle('settings:get', () => {
@@ -13,4 +14,6 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('settings:reset', () => {
     return resetSettings()
   })
+
+  registerAnalyzeHandlers()
 }

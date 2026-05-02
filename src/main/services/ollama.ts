@@ -1,0 +1,95 @@
+import axios, { AxiosError } from 'axios'
+
+export const SD_PROMPT_INSTRUCTION = `Analyze this image and generate a detailed Stable Diffusion prompt that would recreate it.
+Output only the prompt as a single line of comma-separated tags.
+Include: subject, style, lighting, composition, camera/lens, mood, color palette, quality tags.
+Do not include any explanation, markdown, or labels — only the prompt.`
+
+const REQUEST_TIMEOUT_MS = 120_000
+
+interface TagsResponse {
+  models?: Array<{ name?: string; model?: string }>
+}
+
+interface GenerateResponse {
+  response?: string
+}
+
+function trimBaseUrl(baseUrl: string): string {
+  return baseUrl.replace(/\/+$/, '')
+}
+
+export async function checkHealth(baseUrl: string): Promise<boolean> {
+  try {
+    const res = await axios.get(`${trimBaseUrl(baseUrl)}/api/tags`, {
+      timeout: 5_000
+    })
+    return res.status === 200
+  } catch {
+    return false
+  }
+}
+
+export async function listModels(baseUrl: string): Promise<string[]> {
+  try {
+    const res = await axios.get<TagsResponse>(`${trimBaseUrl(baseUrl)}/api/tags`, {
+      timeout: 10_000
+    })
+    const models = res.data?.models ?? []
+    return models
+      .map((m) => m.name ?? m.model ?? '')
+      .filter((n): n is string => typeof n === 'string' && n.length > 0)
+  } catch (err) {
+    throw new Error(`Ollama not reachable at ${baseUrl}: ${(err as Error).message}`)
+  }
+}
+
+export interface GeneratePromptOptions {
+  baseUrl: string
+  model: string
+  imageBase64: string
+  systemPrompt?: string
+}
+
+export async function generatePromptFromImage(opts: GeneratePromptOptions): Promise<string> {
+  const { baseUrl, model, imageBase64, systemPrompt } = opts
+  const url = `${trimBaseUrl(baseUrl)}/api/generate`
+  const body = {
+    model,
+    prompt: systemPrompt ?? SD_PROMPT_INSTRUCTION,
+    images: [imageBase64],
+    stream: false
+  }
+
+  try {
+    const res = await axios.post<GenerateResponse>(url, body, {
+      timeout: REQUEST_TIMEOUT_MS,
+      headers: { 'Content-Type': 'application/json' }
+    })
+    const text = (res.data?.response ?? '').trim()
+    if (!text) {
+      throw new Error('Ollama returned an empty response')
+    }
+    return text
+  } catch (err) {
+    const ax = err as AxiosError<{ error?: string }>
+    if (ax.isAxiosError) {
+      if (ax.code === 'ECONNREFUSED' || ax.code === 'ENOTFOUND') {
+        throw new Error(`Ollama not reachable at ${baseUrl}`)
+      }
+      const status = ax.response?.status
+      const apiError = ax.response?.data?.error
+      if (status === 404 || (apiError && /model.*not found/i.test(apiError))) {
+        throw new Error(`Model '${model}' not found on Ollama at ${baseUrl}`)
+      }
+      if (apiError) {
+        throw new Error(`Ollama error: ${apiError}`)
+      }
+      if (ax.code === 'ECONNABORTED') {
+        throw new Error(`Ollama request timed out after ${REQUEST_TIMEOUT_MS / 1000}s`)
+      }
+      throw new Error(`Ollama request failed: ${ax.message}`)
+    }
+    throw err
+  }
+}

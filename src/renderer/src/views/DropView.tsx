@@ -15,7 +15,7 @@ function detectKind(name: string): MediaKind | null {
 }
 
 export interface DropViewProps {
-  onFileSelected: (filePath: string, kind: MediaKind) => void
+  onFileSelected: (filePath: string, kind: MediaKind, file?: File) => void
 }
 
 export function DropView({ onFileSelected }: DropViewProps): React.JSX.Element {
@@ -29,7 +29,7 @@ export function DropView({ onFileSelected }: DropViewProps): React.JSX.Element {
       // Electron exposes the absolute path on File objects via the non-standard `path` field.
       const anyFile = file as File & { path?: string }
       const filePath = anyFile.path ?? file.name
-      onFileSelected(filePath, kind)
+      onFileSelected(filePath, kind, file)
     },
     [onFileSelected]
   )

@@ -8,12 +8,22 @@ export interface Settings {
   outputFolder: string
 }
 
+export interface ImageAnalysisResult {
+  prompt: string
+  model: string
+  durationMs: number
+}
+
 const api = {
   settings: {
     get: (): Promise<Settings> => ipcRenderer.invoke('settings:get'),
     set: (partial: Partial<Settings>): Promise<Settings> =>
       ipcRenderer.invoke('settings:set', partial),
     reset: (): Promise<Settings> => ipcRenderer.invoke('settings:reset')
+  },
+  analyze: {
+    image: (filePath: string): Promise<ImageAnalysisResult> =>
+      ipcRenderer.invoke('analyze:image', { filePath })
   }
 }
 

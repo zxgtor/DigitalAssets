@@ -7,11 +7,20 @@ export interface Settings {
   outputFolder: string
 }
 
+export interface ImageAnalysisResult {
+  prompt: string
+  model: string
+  durationMs: number
+}
+
 export interface Api {
   settings: {
     get: () => Promise<Settings>
     set: (partial: Partial<Settings>) => Promise<Settings>
     reset: () => Promise<Settings>
+  }
+  analyze: {
+    image: (filePath: string) => Promise<ImageAnalysisResult>
   }
 }
 

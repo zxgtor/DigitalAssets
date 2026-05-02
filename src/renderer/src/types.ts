@@ -12,13 +12,9 @@ export type MediaKind = 'image' | 'video'
 export type OllamaStatus = 'unknown' | 'connected' | 'error'
 
 export interface ImageAnalysisResult {
-  kind: 'image'
-  filePath: string
-  fileName: string
   prompt: string
-  description?: string
-  tags?: string[]
-  createdAt: number
+  model: string
+  durationMs: number
 }
 
 export interface VideoAnalysisResult {
