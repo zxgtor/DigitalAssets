@@ -52,7 +52,7 @@ function App(): React.JSX.Element {
   const [imageResult, setImageResult] = useState<ImageAnalysisResult | null>(null)
   const [videoResult, setVideoResult] = useState<VideoAnalysisResult | null>(null)
   const [analyzeStatus, setAnalyzeStatus] = useState<string>('Analyzing...')
-  const [ollamaStatus] = useState<OllamaStatus>('unknown')
+  const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus>('unknown')
   const [workflow, setWorkflow] = useState<WorkflowJSON | null>(null)
   const [workflowKind, setWorkflowKind] = useState<WorkflowKind>('image')
 
@@ -142,6 +142,23 @@ function App(): React.JSX.Element {
   const handleWorkflowBack = useCallback(() => {
     setActiveView(workflowKind === 'image' ? 'imageResult' : 'videoResult')
   }, [workflowKind])
+
+  // Poll Ollama health endpoint every 20 seconds.
+  useEffect(() => {
+    const check = async (): Promise<void> => {
+      try {
+        const settings = await window.api.settings.get()
+        const base = (settings.ollamaBaseUrl ?? 'http://localhost:11434').replace(/\/$/, '')
+        const res = await fetch(`${base}/api/tags`, { method: 'GET' })
+        setOllamaStatus(res.ok ? 'connected' : 'error')
+      } catch {
+        setOllamaStatus('error')
+      }
+    }
+    void check()
+    const id = setInterval(() => void check(), 20_000)
+    return () => clearInterval(id)
+  }, [])
 
   // Kick off analysis when entering 'analyzing' view.
   useEffect(() => {
@@ -285,7 +302,9 @@ function App(): React.JSX.Element {
         }}
       >
         <AmbientGlow />
-        {content}
+        <div key={activeView} className="view-fade" style={{ height: '100%' }}>
+          {content}
+        </div>
       </main>
     </div>
   )
