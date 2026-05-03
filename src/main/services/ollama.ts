@@ -1,18 +1,32 @@
 import axios, { AxiosError } from 'axios'
 
-export const SD_PROMPT_INSTRUCTION = `You are a Stable Diffusion prompt engineer. Look at this image carefully and write a single, dense Stable Diffusion prompt that would faithfully recreate it.
+export const SD_SYSTEM_PROMPT = `You are an expert Stable Diffusion / SDXL prompt engineer. Your job is to reverse-engineer images into extremely detailed, production-ready prompts that will faithfully recreate the source when fed to an image generation model.
 
-Required fields, in this order, joined by commas (no labels, no line breaks, no explanation):
-1. SUBJECT — main subject(s) with concrete visual details: age, gender, ethnicity, hair color/style, clothing, expression, pose, action; or for objects/scenes: type, materials, condition, key features.
-2. SCENE — environment, setting, foreground/background elements, props, weather, time of day.
-3. COMPOSITION — framing (close-up / medium shot / wide / aerial), shot angle (low / eye-level / high / overhead), depth of field (shallow / deep), rule-of-thirds or centered subject.
-4. CAMERA — lens (35mm / 50mm / 85mm / wide-angle / telephoto / fisheye), aperture (f/1.4 etc), focus point.
-5. LIGHTING — source (natural / studio / neon / candlelight), direction (rim, backlit, side, top), quality (soft / hard / diffused), shadows, highlights.
-6. COLOR — dominant palette, saturation level, color grading (teal-and-orange, warm tones, desaturated, muted, etc).
-7. STYLE — medium (photo / oil painting / 3D render / anime / pixel art), specific artist or studio reference if recognizable, era.
-8. QUALITY TAGS — masterpiece, highly detailed, sharp focus, 8k, hdr, cinematic.
+You ALWAYS output dense, specific, comma-separated prompts. You NEVER output short or vague descriptions. You NEVER use generic words when specific ones exist. You treat every visual detail as critical.`
 
-Output ONLY the comma-separated prompt. No preamble, no markdown, no quotes, no trailing notes. 60–120 words is ideal.`
+export const SD_PROMPT_INSTRUCTION = `Analyze this image with extreme attention to detail and write a single, dense Stable Diffusion prompt that would faithfully recreate it in an image generation model.
+
+You MUST cover ALL of the following aspects in your output, joined by commas:
+
+1. SUBJECT — Describe the main subject(s) with maximum specificity. For people: exact apparent age, gender, ethnicity, hair color/length/style, facial features, expression, body pose, hand positions, clothing (brand/style/color/fit/material/patterns), accessories, jewelry. For objects/scenes: type, material, texture, condition, distinguishing features.
+
+2. SCENE/ENVIRONMENT — Exact setting (indoor/outdoor, specific location type), background elements, foreground elements, props, furniture, vegetation, weather conditions, time of day, season, architectural style.
+
+3. COMPOSITION & FRAMING — Shot type (extreme close-up, close-up, medium close-up, medium shot, medium wide, wide shot, extreme wide, aerial), camera angle (worm's eye, low angle, eye level, high angle, bird's eye, dutch angle), depth of field (bokeh amount), focal plane, rule of thirds placement, leading lines.
+
+4. CAMERA & LENS — Specific lens equivalent (14mm, 24mm, 35mm, 50mm, 85mm, 135mm, 200mm), aperture (f/1.2, f/1.4, f/2.8, f/8, f/16), shutter speed effect (frozen motion, motion blur), camera type feel (DSLR, mirrorless, film camera, medium format, phone camera).
+
+5. LIGHTING — Primary light source and direction, secondary/fill lights, light quality (hard/soft/diffused), color temperature (warm/cool/neutral), shadows (harsh/soft/minimal), highlights, rim lighting, backlighting, lens flare, god rays, volumetric lighting.
+
+6. COLOR & GRADING — Dominant color palette (list specific colors), saturation level, contrast level, color grading style (teal and orange, warm golden, cool blue, desaturated, cross-processed, bleach bypass), overall mood of color.
+
+7. STYLE & MEDIUM — Art medium (photograph, digital art, oil painting, watercolor, 3D render, anime, cel-shaded, pixel art, vector art), specific style references, era/period, rendering quality, texture quality.
+
+8. QUALITY TAGS — Include: masterpiece, best quality, highly detailed, sharp focus, professional, 8k uhd, high resolution, RAW photo, (add more relevant quality boosters).
+
+OUTPUT FORMAT: One continuous comma-separated prompt. NO labels, NO numbering, NO line breaks, NO markdown, NO explanations, NO quotes around the output. Just the raw prompt text.
+
+TARGET LENGTH: 80–200 words. More detail is ALWAYS better. Short outputs are failures.`
 
 const REQUEST_TIMEOUT_MS = 120_000
 
@@ -73,7 +87,17 @@ export interface GenerateTextOptions {
 export async function generateText(opts: GenerateTextOptions): Promise<string> {
   const { baseUrl, model, prompt } = opts
   const url = `${trimBaseUrl(baseUrl)}/api/generate`
-  const body = { model, prompt, stream: false }
+  const body = {
+    model,
+    prompt,
+    stream: false,
+    options: {
+      temperature: 0.3,
+      num_predict: 600,
+      top_p: 0.9,
+      repeat_penalty: 1.1
+    }
+  }
   try {
     const res = await axios.post<GenerateResponse>(url, body, {
       timeout: REQUEST_TIMEOUT_MS,
@@ -115,9 +139,16 @@ export async function generatePromptFromImage(opts: GeneratePromptOptions): Prom
   const url = `${trimBaseUrl(baseUrl)}/api/generate`
   const body = {
     model,
+    system: SD_SYSTEM_PROMPT,
     prompt: systemPrompt ?? SD_PROMPT_INSTRUCTION,
     images: [imageBase64],
-    stream: false
+    stream: false,
+    options: {
+      temperature: 0.3,
+      num_predict: 600,
+      top_p: 0.9,
+      repeat_penalty: 1.1
+    }
   }
 
   try {
