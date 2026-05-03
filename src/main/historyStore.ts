@@ -60,6 +60,12 @@ export function addHistoryEntry(
   return newEntry
 }
 
+export function deleteHistoryEntry(id: string): void {
+  const entries = readFromDisk()
+  const filtered = entries.filter((e) => e.id !== id)
+  writeToDisk(filtered)
+}
+
 export function clearHistory(): void {
   writeToDisk([])
 }

@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { addHistoryEntry, clearHistory, listHistory, HistoryEntry } from '../historyStore'
+import { addHistoryEntry, clearHistory, deleteHistoryEntry, listHistory, HistoryEntry } from '../historyStore'
 import { registerPath } from '../services/mediaServer'
 
 export function registerHistoryHandlers(): void {
@@ -20,6 +20,10 @@ export function registerHistoryHandlers(): void {
       return addHistoryEntry(entry)
     }
   )
+
+  ipcMain.handle('history:delete', (_event, id: string): void => {
+    deleteHistoryEntry(id)
+  })
 
   ipcMain.handle('history:clear', (): void => {
     clearHistory()

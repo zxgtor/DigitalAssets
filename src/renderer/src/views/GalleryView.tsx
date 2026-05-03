@@ -41,9 +41,10 @@ function formatMeta(entry: HistoryEntry): string {
 interface GalleryCardProps {
   entry: HistoryEntry
   onOpenComfy: (entry: HistoryEntry) => void
+  onDelete: (id: string) => void
 }
 
-function GalleryCard({ entry, onOpenComfy }: GalleryCardProps): React.JSX.Element {
+function GalleryCard({ entry, onOpenComfy, onDelete }: GalleryCardProps): React.JSX.Element {
   const [copied, setCopied] = useState(false)
   const [bgImage, setBgImage] = useState<string>('')
   const [videoSrc, setVideoSrc] = useState<string>('')
@@ -97,6 +98,10 @@ function GalleryCard({ entry, onOpenComfy }: GalleryCardProps): React.JSX.Elemen
     onOpenComfy(entry)
   }, [entry, onOpenComfy])
 
+  const handleDelete = useCallback(() => {
+    onDelete(entry.id)
+  }, [entry.id, onDelete])
+
   return (
     <div
       className={styles.card}
@@ -148,6 +153,15 @@ function GalleryCard({ entry, onOpenComfy }: GalleryCardProps): React.JSX.Elemen
             aria-label="Open in ComfyUI"
           >
             ⊕
+          </button>
+          <button
+            type="button"
+            className={styles.actionIcon}
+            onClick={handleDelete}
+            title="Delete from gallery"
+            aria-label="Delete from gallery"
+          >
+            ✕
           </button>
         </div>
       </div>
@@ -202,6 +216,24 @@ export function GalleryView(): React.JSX.Element {
     []
   )
 
+  const handleDelete = useCallback(
+    async (id: string) => {
+      // eslint-disable-next-line no-alert
+      if (!window.confirm('Delete this entry from gallery? This cannot be undone.')) {
+        return
+      }
+      try {
+        await window.api.history.delete(id)
+        setEntries((prev) => prev.filter((e) => e.id !== id))
+      } catch (err) {
+        console.error('Delete failed', err)
+        // eslint-disable-next-line no-alert
+        alert(`Failed to delete:\n\n${err instanceof Error ? err.message : String(err)}`)
+      }
+    },
+    []
+  )
+
   return (
     <div className={styles.wrap}>
       <div className={styles.header}>
@@ -230,7 +262,12 @@ export function GalleryView(): React.JSX.Element {
       ) : (
         <div className={styles.grid}>
           {entries.map((entry) => (
-            <GalleryCard key={entry.id} entry={entry} onOpenComfy={handleOpenComfy} />
+            <GalleryCard
+              key={entry.id}
+              entry={entry}
+              onOpenComfy={handleOpenComfy}
+              onDelete={handleDelete}
+            />
           ))}
         </div>
       )}
