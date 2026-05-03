@@ -116,6 +116,9 @@ export interface Api {
   comfy: {
     open: (args: ComfyOpenArgs) => Promise<ComfyOpenResult>
   }
+  app: {
+    onNavigate: (callback: (payload: { page: string; file?: string }) => void) => () => void
+  }
 }
 
 declare global {

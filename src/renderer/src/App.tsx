@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import './styles/globals.css'
-import { Sidebar } from './components/Sidebar'
+import { TopNav } from './components/TopNav'
 import { AmbientGlow } from './components/AmbientGlow'
 import { DropView } from './views/DropView'
 import { AnalyzingView } from './views/AnalyzingView'
@@ -212,6 +212,29 @@ function App(): React.JSX.Element {
     return unsubscribe
   }, [])
 
+  // Listen for agent / deep-link navigation commands.
+  useEffect(() => {
+    const unsubscribe = window.api.app.onNavigate(({ page, file }) => {
+      if (page === 'gallery') {
+        handleNavigate('gallery')
+      } else if (page === 'settings') {
+        handleNavigate('settings')
+      } else if (page === 'analyze' || page === 'generate') {
+        if (file) {
+          // Determine kind from extension
+          const ext = file.split('.').pop()?.toLowerCase() ?? ''
+          const kind: MediaKind = ['mp4', 'mov', 'mkv', 'webm', 'avi'].includes(ext)
+            ? 'video'
+            : 'image'
+          handleFileSelected(file, kind)
+        } else {
+          handleNavigate('drop')
+        }
+      }
+    })
+    return unsubscribe
+  }, [handleNavigate, handleFileSelected])
+
   // Kick off analysis when entering 'analyzing' view.
   useEffect(() => {
     if (activeView !== 'analyzing' || !selectedFile) return
@@ -353,13 +376,13 @@ function App(): React.JSX.Element {
     <div
       style={{
         display: 'flex',
-        flexDirection: 'row',
+        flexDirection: 'column',
         height: '100vh',
         width: '100vw',
         overflow: 'hidden'
       }}
     >
-      <Sidebar
+      <TopNav
         activeView={activeView}
         onNavigate={handleNavigate}
         ollamaStatus={ollamaStatus}
@@ -368,8 +391,8 @@ function App(): React.JSX.Element {
         style={{
           flex: 1,
           position: 'relative',
-          height: '100%',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          paddingTop: '40px'
         }}
       >
         <AmbientGlow />

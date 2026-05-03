@@ -137,6 +137,14 @@ const api = {
   comfy: {
     open: (args: ComfyOpenArgs): Promise<ComfyOpenResult> =>
       ipcRenderer.invoke('comfy:open', args)
+  },
+  app: {
+    onNavigate: (callback: (payload: { page: string; file?: string }) => void): (() => void) => {
+      const handler = (_event: unknown, payload: { page: string; file?: string }): void =>
+        callback(payload)
+      ipcRenderer.on('app:navigate', handler)
+      return () => ipcRenderer.removeListener('app:navigate', handler)
+    }
   }
 }
 

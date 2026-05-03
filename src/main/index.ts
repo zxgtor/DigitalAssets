@@ -1,16 +1,74 @@
-import { app, shell, BrowserWindow } from 'electron'
+import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { registerIpcHandlers } from './ipc'
 import { startMediaServer } from './services/mediaServer'
 
+// ─── Agent deep-link protocol ─────────────────────────────────────────────────
+// Supports: videotoprompt://gallery
+//           videotoprompt://analyze?file=/abs/path/to/file
+//           videotoprompt://generate
+// Can also be triggered by CLI arg on launch:  --url=videotoprompt://gallery
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PROTOCOL = 'videotoprompt'
+
+/** Parse a deep-link URL into a navigate payload and broadcast to renderer. */
+function handleDeepLink(url: string): void {
+  const win = BrowserWindow.getAllWindows()[0]
+  if (!win) return
+
+  try {
+    const parsed = new URL(url)
+    const page = parsed.hostname // e.g. "gallery", "analyze", "generate"
+    const file = parsed.searchParams.get('file') ?? undefined
+
+    win.webContents.send('app:navigate', { page, file })
+    win.show()
+    win.focus()
+  } catch {
+    console.warn('[deeplink] could not parse:', url)
+  }
+}
+
+/** Extract a videotoprompt:// URL from process.argv if present. */
+function deepLinkFromArgs(argv: string[]): string | null {
+  return argv.find((a) => a.startsWith(`${PROTOCOL}://`)) ?? null
+}
+
+// Register as default handler for videotoprompt:// URLs
+if (!is.dev) {
+  app.setAsDefaultProtocolClient(PROTOCOL)
+}
+
+// Single-instance lock — forward deep-link URLs to the running instance
+const gotLock = app.requestSingleInstanceLock()
+if (!gotLock) {
+  app.quit()
+} else {
+  app.on('second-instance', (_event, argv) => {
+    const url = deepLinkFromArgs(argv)
+    if (url) handleDeepLink(url)
+    // Bring window to front
+    const win = BrowserWindow.getAllWindows()[0]
+    if (win) { if (win.isMinimized()) win.restore(); win.focus() }
+  })
+}
+
+// macOS: handle protocol URL via open-url event
+app.on('open-url', (_event, url) => {
+  handleDeepLink(url)
+})
+
+// ─── Window ──────────────────────────────────────────────────────────────────
+
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
     width: 1100,
     height: 720,
-    minWidth: 900,
-    minHeight: 600,
+    minWidth: 760,
+    minHeight: 500,
     show: false,
     autoHideMenuBar: true,
     backgroundColor: '#000000',
@@ -28,6 +86,10 @@ function createWindow(): void {
     if (is.dev) {
       mainWindow.webContents.openDevTools({ mode: 'detach' })
     }
+
+    // Handle deep-link passed on launch (Windows / Linux pass it in argv)
+    const url = deepLinkFromArgs(process.argv)
+    if (url) handleDeepLink(url)
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -49,11 +111,14 @@ app.whenReady().then(async () => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // Start the local media server BEFORE registering IPC handlers, so
-  // the analyze handlers can register paths against it.
   await startMediaServer()
-
   registerIpcHandlers()
+
+  // Allow renderer to request navigation (for agent HTTP integration)
+  ipcMain.handle('app:navigate', (_event, payload: { page: string; file?: string }) => {
+    const win = BrowserWindow.getAllWindows()[0]
+    if (win) win.webContents.send('app:navigate', payload)
+  })
 
   createWindow()
 
