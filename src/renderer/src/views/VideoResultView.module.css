@@ -68,6 +68,15 @@
   margin-left: auto;
 }
 
+.videoPlayer {
+  width: 100%;
+  max-height: 360px;
+  background-color: #000;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  outline: none;
+}
+
 .label {
   font-size: 7.5px;
   color: var(--text-muted);

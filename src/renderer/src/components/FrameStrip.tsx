@@ -1,5 +1,6 @@
 import React from 'react'
 import styles from './FrameStrip.module.css'
+import { toMediaUrl } from '../utils/mediaUrl'
 
 export interface FrameStripFrame {
   timeSec: number
@@ -39,7 +40,7 @@ export function FrameStrip({
             onClick={() => onSelect(i)}
           >
             <span className={styles.thumb}>
-              <img src={`file://${frame.thumbnailPath}`} alt={`Frame ${i + 1}`} />
+              <img src={toMediaUrl(frame.thumbnailPath)} alt={`Frame ${i + 1}`} />
             </span>
             <span className={styles.timeLabel}>{formatTime(frame.timeSec)}</span>
           </button>

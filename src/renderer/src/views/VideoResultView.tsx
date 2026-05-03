@@ -3,6 +3,7 @@ import styles from './VideoResultView.module.css'
 import { PillButton } from '../components/PillButton'
 import { PromptBox } from '../components/PromptBox'
 import { FrameStrip } from '../components/FrameStrip'
+import { toMediaUrl } from '../utils/mediaUrl'
 import type { VideoAnalysisResult } from '../types'
 
 export interface VideoResultViewProps {
@@ -72,6 +73,15 @@ export function VideoResultView({
             </PillButton>
           </div>
         </div>
+
+        {result.videoPath && (
+          <video
+            className={styles.videoPlayer}
+            src={toMediaUrl(result.videoPath)}
+            controls
+            preload="metadata"
+          />
+        )}
 
         <div className={styles.label}>KEY FRAMES</div>
         <FrameStrip

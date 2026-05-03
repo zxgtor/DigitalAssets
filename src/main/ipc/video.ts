@@ -25,6 +25,8 @@ export interface VideoAnalysisResult {
   height: number
   keyframes: VideoKeyframeResult[]
   masterPrompt: string
+  /** Absolute path to the local video file, suitable for media:// URLs. */
+  videoPath?: string
   sourceTitle?: string
   sourceUrl?: string
 }
@@ -102,7 +104,8 @@ export function registerVideoHandlers(): void {
       if (!filePath) {
         throw new Error('analyze:video requires a filePath')
       }
-      return analyzeLocalVideo(filePath)
+      const result = await analyzeLocalVideo(filePath)
+      return { ...result, videoPath: filePath }
     }
   )
 
@@ -117,7 +120,7 @@ export function registerVideoHandlers(): void {
       const tmpDir = join(app.getPath('temp'), 'videotoprompt', String(Date.now()))
       const { filePath, title } = await downloadYouTubeVideo(url, tmpDir)
       const result = await analyzeLocalVideo(filePath)
-      return { ...result, sourceTitle: title, sourceUrl: url }
+      return { ...result, videoPath: filePath, sourceTitle: title, sourceUrl: url }
     }
   )
 }

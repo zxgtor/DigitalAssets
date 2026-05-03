@@ -27,6 +27,7 @@ export interface VideoAnalysisResult {
   height: number
   keyframes: VideoKeyframeResult[]
   masterPrompt: string
+  videoPath?: string
   sourceTitle?: string
   sourceUrl?: string
 }
