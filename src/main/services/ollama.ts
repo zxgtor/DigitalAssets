@@ -81,7 +81,14 @@ export async function generateText(opts: GenerateTextOptions): Promise<string> {
       if (ax.code === 'ECONNREFUSED' || ax.code === 'ENOTFOUND') {
         throw new Error(`Ollama not reachable at ${baseUrl}`)
       }
+      const status = ax.response?.status
       const apiError = ax.response?.data?.error
+      if (status === 404 || (apiError && /model.*not found/i.test(apiError))) {
+        throw new Error(
+          `Model '${model}' is not installed on Ollama.\n\n` +
+            `Install it by running:\n  ollama pull ${model}`
+        )
+      }
       if (apiError) {
         throw new Error(`Ollama error: ${apiError}`)
       }
@@ -123,7 +130,22 @@ export async function generatePromptFromImage(opts: GeneratePromptOptions): Prom
       const status = ax.response?.status
       const apiError = ax.response?.data?.error
       if (status === 404 || (apiError && /model.*not found/i.test(apiError))) {
-        throw new Error(`Model '${model}' not found on Ollama at ${baseUrl}`)
+        // Try to surface what IS installed so the user can pick one or pull.
+        let installedHint = ''
+        try {
+          const installed = await listModels(baseUrl)
+          installedHint = installed.length
+            ? `\n\nInstalled models: ${installed.join(', ')}`
+            : '\n\nNo models are currently installed.'
+        } catch {
+          /* ignore */
+        }
+        throw new Error(
+          `Model '${model}' is not installed on Ollama.\n\n` +
+            `Install it by running:\n  ollama pull ${model}\n\n` +
+            `Or change the model in Settings to one you already have.` +
+            installedHint
+        )
       }
       if (apiError) {
         throw new Error(`Ollama error: ${apiError}`)
