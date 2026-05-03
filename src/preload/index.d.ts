@@ -96,7 +96,7 @@ export interface Api {
   }
   history: {
     list: () => Promise<HistoryEntry[]>
-    add: (entry: Omit<HistoryEntry, 'id'>) => Promise<HistoryEntry>
+    add: (entry: Omit<HistoryEntry, 'id'> & { id?: string }) => Promise<HistoryEntry>
     clear: () => Promise<void>
   }
   workflow: {

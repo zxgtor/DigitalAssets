@@ -111,7 +111,7 @@ const api = {
   },
   history: {
     list: (): Promise<HistoryEntry[]> => ipcRenderer.invoke('history:list'),
-    add: (entry: Omit<HistoryEntry, 'id'>): Promise<HistoryEntry> =>
+    add: (entry: Omit<HistoryEntry, 'id'> & { id?: string }): Promise<HistoryEntry> =>
       ipcRenderer.invoke('history:add', entry),
     clear: (): Promise<void> => ipcRenderer.invoke('history:clear')
   },

@@ -218,13 +218,16 @@ function App(): React.JSX.Element {
           setActiveView('imageResult')
           // persist to history (fire-and-forget)
           void window.api.history.add({
+            id: result.historyId,
             kind: 'image',
             filePath: selectedFile.filePath,
             fileName: selectedFile.fileName,
             prompt: result.prompt,
             model: result.model,
             durationMs: result.durationMs,
-            createdAt: Date.now()
+            createdAt: Date.now(),
+            thumbnailPath: result.thumbnailPath,
+            videoPath: result.imagePath
           })
         } else {
           const isYouTube = !!selectedFile.youtubeUrl
@@ -242,6 +245,7 @@ function App(): React.JSX.Element {
           setActiveView('videoResult')
           // persist to history (fire-and-forget)
           void window.api.history.add({
+            id: result.historyId,
             kind: 'video',
             filePath: isYouTube
               ? (result.sourceUrl ?? (selectedFile.youtubeUrl as string))
@@ -252,7 +256,9 @@ function App(): React.JSX.Element {
             durationSec: result.duration,
             frameCount: result.keyframes.length,
             durationMs: result.durationMs,
-            createdAt: Date.now()
+            createdAt: Date.now(),
+            thumbnailPath: result.thumbnailPath,
+            videoPath: result.videoPath
           })
         }
       } catch (err) {
