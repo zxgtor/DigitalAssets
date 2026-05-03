@@ -8,10 +8,10 @@ export interface TopNavProps {
   ollamaStatus?: OllamaStatus
 }
 
-const NAV_ITEMS: { view: ViewName; label: string }[] = [
-  { view: 'gallery', label: 'Gallery' },
-  { view: 'drop', label: 'Analyze' },
-  { view: 'settings', label: 'Settings' }
+const NAV_ITEMS: { view: ViewName; icon: string; label: string }[] = [
+  { view: 'gallery', icon: '⊞', label: 'Gallery' },
+  { view: 'drop', icon: '⬆', label: 'Analyze' },
+  { view: 'settings', icon: '⚙', label: 'Settings' }
 ]
 
 function isActive(active: ViewName, item: ViewName): boolean {
@@ -53,9 +53,11 @@ export function TopNav({
               type="button"
               className={[styles.navItem, active ? styles.active : ''].join(' ')}
               onClick={() => onNavigate(item.view)}
+              title={item.label}
+              aria-label={item.label}
               aria-current={active ? 'page' : undefined}
             >
-              {item.label}
+              {item.icon}
             </button>
           )
         })}
