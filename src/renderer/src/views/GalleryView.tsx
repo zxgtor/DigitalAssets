@@ -223,7 +223,7 @@ export function GalleryView(): React.JSX.Element {
         return
       }
       try {
-        await window.api.history.delete(id)
+        await window.api.history.remove(id)
         setEntries((prev) => prev.filter((e) => e.id !== id))
       } catch (err) {
         console.error('Delete failed', err)
