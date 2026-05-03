@@ -93,6 +93,7 @@ export interface Api {
     image: (filePath: string) => Promise<ImageAnalysisResult>
     video: (filePath: string) => Promise<VideoAnalysisResult>
     youtube: (url: string) => Promise<VideoAnalysisResult>
+    onProgress: (callback: (status: string) => void) => () => void
   }
   history: {
     list: () => Promise<HistoryEntry[]>

@@ -204,6 +204,14 @@ function App(): React.JSX.Element {
     }
   }, [])
 
+  // Listen for per-frame progress updates from the main process.
+  useEffect(() => {
+    const unsubscribe = window.api.analyze.onProgress((status: string) => {
+      setAnalyzeStatus(status)
+    })
+    return unsubscribe
+  }, [])
+
   // Kick off analysis when entering 'analyzing' view.
   useEffect(() => {
     if (activeView !== 'analyzing' || !selectedFile) return

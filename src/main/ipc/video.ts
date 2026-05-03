@@ -1,4 +1,4 @@
-import { ipcMain, app } from 'electron'
+import { ipcMain, app, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { promises as fs } from 'fs'
 import { getSettings } from '../store'
@@ -92,12 +92,20 @@ Rules:
 Per-frame prompts (chronological):
 `
 
+/** Send progress updates to all renderer windows. */
+function sendProgress(status: string): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send('analyze:progress', status)
+  }
+}
+
 async function analyzeLocalVideo(filePath: string): Promise<VideoAnalysisResult> {
   const start = Date.now()
   const settings = getSettings()
   const maxFrames = Math.max(1, settings.maxKeyframes ?? 8)
 
   // 1. Get video metadata
+  sendProgress('Reading video metadata...')
   const meta = await getVideoMetadata(filePath)
   if (!meta.durationSec) {
     throw new Error('Unable to determine video duration')
@@ -108,6 +116,7 @@ async function analyzeLocalVideo(filePath: string): Promise<VideoAnalysisResult>
   await fs.mkdir(tmpRoot, { recursive: true })
 
   // 3. Extract evenly-spaced keyframes
+  sendProgress('Extracting keyframes...')
   const framePaths = await extractKeyframes(filePath, maxFrames, tmpRoot)
 
   // Compute the timestamps that match the extractor's spacing
@@ -119,6 +128,7 @@ async function analyzeLocalVideo(filePath: string): Promise<VideoAnalysisResult>
   // 4. Per-frame analysis (sequential to avoid hammering Ollama)
   const keyframes: VideoKeyframeResult[] = []
   for (let i = 0; i < framePaths.length; i++) {
+    sendProgress(`Analyzing frame ${i + 1} of ${framePaths.length}...`)
     const fp = framePaths[i]
     const b64 = await encodeImageToBase64(fp)
     const prompt = await generatePromptFromImage({
@@ -136,6 +146,7 @@ async function analyzeLocalVideo(filePath: string): Promise<VideoAnalysisResult>
 
   // 5. Synthesize a master prompt (text-only). Include timestamps so the
   //    model can reason about motion and temporal changes.
+  sendProgress('Synthesizing master prompt...')
   const numbered = keyframes
     .map((k, i) => `${i + 1}. [t=${k.timeSec.toFixed(1)}s] ${k.prompt}`)
     .join('\n')

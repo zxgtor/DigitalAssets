@@ -107,7 +107,12 @@ const api = {
     video: (filePath: string): Promise<VideoAnalysisResult> =>
       ipcRenderer.invoke('analyze:video', { filePath }),
     youtube: (url: string): Promise<VideoAnalysisResult> =>
-      ipcRenderer.invoke('analyze:youtube', { url })
+      ipcRenderer.invoke('analyze:youtube', { url }),
+    onProgress: (callback: (status: string) => void): (() => void) => {
+      const handler = (_event: unknown, status: string): void => callback(status)
+      ipcRenderer.on('analyze:progress', handler)
+      return () => ipcRenderer.removeListener('analyze:progress', handler)
+    }
   },
   history: {
     list: (): Promise<HistoryEntry[]> => ipcRenderer.invoke('history:list'),

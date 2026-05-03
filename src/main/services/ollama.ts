@@ -1,4 +1,5 @@
 import axios, { AxiosError } from 'axios'
+import { Readable } from 'stream'
 
 export const SD_SYSTEM_PROMPT = `You are an expert Stable Diffusion / SDXL prompt engineer. Your job is to reverse-engineer images into extremely detailed, production-ready prompts that will faithfully recreate the source when fed to an image generation model.
 
@@ -28,14 +29,8 @@ OUTPUT FORMAT: One continuous comma-separated prompt. NO labels, NO numbering, N
 
 TARGET LENGTH: 80–200 words. More detail is ALWAYS better. Short outputs are failures.`
 
-const REQUEST_TIMEOUT_MS = 120_000
-
 interface TagsResponse {
   models?: Array<{ name?: string; model?: string }>
-}
-
-interface GenerateResponse {
-  response?: string
 }
 
 function trimBaseUrl(baseUrl: string): string {
@@ -81,8 +76,92 @@ export interface GenerateTextOptions {
 }
 
 /**
+ * Read an NDJSON stream from Ollama and accumulate the response text.
+ * Using streaming prevents timeout because data flows continuously —
+ * even if the model takes minutes to generate, the connection stays alive.
+ */
+async function readStreamResponse(stream: Readable, _baseUrl: string, model: string): Promise<string> {
+  let accumulated = ''
+  let buffer = ''
+
+  for await (const chunk of stream) {
+    buffer += chunk.toString()
+    const lines = buffer.split('\n')
+    // Keep the last incomplete line in the buffer
+    buffer = lines.pop() ?? ''
+
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (!trimmed) continue
+      try {
+        const parsed = JSON.parse(trimmed)
+        // Check for errors in the stream
+        if (parsed.error) {
+          if (/model.*not found/i.test(parsed.error)) {
+            throw new Error(
+              `Model '${model}' is not installed on Ollama.\n\n` +
+                `Install it by running:\n  ollama pull ${model}\n\n` +
+                `Or change the model in Settings to one you already have.`
+            )
+          }
+          throw new Error(`Ollama error: ${parsed.error}`)
+        }
+        if (parsed.response) {
+          accumulated += parsed.response
+        }
+      } catch (e) {
+        if (e instanceof SyntaxError) continue // skip malformed lines
+        throw e
+      }
+    }
+  }
+
+  // Process any remaining buffer
+  if (buffer.trim()) {
+    try {
+      const parsed = JSON.parse(buffer.trim())
+      if (parsed.response) accumulated += parsed.response
+    } catch {
+      // ignore
+    }
+  }
+
+  const result = accumulated.trim()
+  if (!result) {
+    throw new Error('Ollama returned an empty response')
+  }
+  return result
+}
+
+/**
+ * Handle connection-level errors (before streaming begins).
+ */
+function handleConnectionError(err: unknown, baseUrl: string, model: string): never {
+  const ax = err as AxiosError<{ error?: string }>
+  if (ax.isAxiosError) {
+    if (ax.code === 'ECONNREFUSED' || ax.code === 'ENOTFOUND') {
+      throw new Error(`Ollama not reachable at ${baseUrl}`)
+    }
+    const status = ax.response?.status
+    const apiError = ax.response?.data?.error
+    if (status === 404 || (apiError && /model.*not found/i.test(apiError))) {
+      throw new Error(
+        `Model '${model}' is not installed on Ollama.\n\n` +
+          `Install it by running:\n  ollama pull ${model}\n\n` +
+          `Or change the model in Settings to one you already have.`
+      )
+    }
+    if (apiError) {
+      throw new Error(`Ollama error: ${apiError}`)
+    }
+    throw new Error(`Ollama request failed: ${ax.message}`)
+  }
+  throw err
+}
+
+/**
  * Plain text completion via /api/generate (no images). Used for synthesizing
- * a master prompt from per-frame prompts.
+ * a master prompt from per-frame prompts. Uses streaming to avoid timeout.
  */
 export async function generateText(opts: GenerateTextOptions): Promise<string> {
   const { baseUrl, model, prompt } = opts
@@ -90,7 +169,7 @@ export async function generateText(opts: GenerateTextOptions): Promise<string> {
   const body = {
     model,
     prompt,
-    stream: false,
+    stream: true,
     options: {
       temperature: 0.3,
       num_predict: 600,
@@ -99,38 +178,14 @@ export async function generateText(opts: GenerateTextOptions): Promise<string> {
     }
   }
   try {
-    const res = await axios.post<GenerateResponse>(url, body, {
-      timeout: REQUEST_TIMEOUT_MS,
-      headers: { 'Content-Type': 'application/json' }
+    const res = await axios.post(url, body, {
+      timeout: 30_000, // 30s to establish connection only
+      headers: { 'Content-Type': 'application/json' },
+      responseType: 'stream'
     })
-    const text = (res.data?.response ?? '').trim()
-    if (!text) {
-      throw new Error('Ollama returned an empty response')
-    }
-    return text
+    return await readStreamResponse(res.data as Readable, baseUrl, model)
   } catch (err) {
-    const ax = err as AxiosError<{ error?: string }>
-    if (ax.isAxiosError) {
-      if (ax.code === 'ECONNREFUSED' || ax.code === 'ENOTFOUND') {
-        throw new Error(`Ollama not reachable at ${baseUrl}`)
-      }
-      const status = ax.response?.status
-      const apiError = ax.response?.data?.error
-      if (status === 404 || (apiError && /model.*not found/i.test(apiError))) {
-        throw new Error(
-          `Model '${model}' is not installed on Ollama.\n\n` +
-            `Install it by running:\n  ollama pull ${model}`
-        )
-      }
-      if (apiError) {
-        throw new Error(`Ollama error: ${apiError}`)
-      }
-      if (ax.code === 'ECONNABORTED') {
-        throw new Error(`Ollama request timed out after ${REQUEST_TIMEOUT_MS / 1000}s`)
-      }
-      throw new Error(`Ollama request failed: ${ax.message}`)
-    }
-    throw err
+    handleConnectionError(err, baseUrl, model)
   }
 }
 
@@ -142,7 +197,7 @@ export async function generatePromptFromImage(opts: GeneratePromptOptions): Prom
     system: SD_SYSTEM_PROMPT,
     prompt: systemPrompt ?? SD_PROMPT_INSTRUCTION,
     images: [imageBase64],
-    stream: false,
+    stream: true,
     options: {
       temperature: 0.3,
       num_predict: 600,
@@ -152,49 +207,13 @@ export async function generatePromptFromImage(opts: GeneratePromptOptions): Prom
   }
 
   try {
-    const res = await axios.post<GenerateResponse>(url, body, {
-      timeout: REQUEST_TIMEOUT_MS,
-      headers: { 'Content-Type': 'application/json' }
+    const res = await axios.post(url, body, {
+      timeout: 30_000, // 30s to establish connection only (not generation time)
+      headers: { 'Content-Type': 'application/json' },
+      responseType: 'stream'
     })
-    const text = (res.data?.response ?? '').trim()
-    if (!text) {
-      throw new Error('Ollama returned an empty response')
-    }
-    return text
+    return await readStreamResponse(res.data as Readable, baseUrl, model)
   } catch (err) {
-    const ax = err as AxiosError<{ error?: string }>
-    if (ax.isAxiosError) {
-      if (ax.code === 'ECONNREFUSED' || ax.code === 'ENOTFOUND') {
-        throw new Error(`Ollama not reachable at ${baseUrl}`)
-      }
-      const status = ax.response?.status
-      const apiError = ax.response?.data?.error
-      if (status === 404 || (apiError && /model.*not found/i.test(apiError))) {
-        // Try to surface what IS installed so the user can pick one or pull.
-        let installedHint = ''
-        try {
-          const installed = await listModels(baseUrl)
-          installedHint = installed.length
-            ? `\n\nInstalled models: ${installed.join(', ')}`
-            : '\n\nNo models are currently installed.'
-        } catch {
-          /* ignore */
-        }
-        throw new Error(
-          `Model '${model}' is not installed on Ollama.\n\n` +
-            `Install it by running:\n  ollama pull ${model}\n\n` +
-            `Or change the model in Settings to one you already have.` +
-            installedHint
-        )
-      }
-      if (apiError) {
-        throw new Error(`Ollama error: ${apiError}`)
-      }
-      if (ax.code === 'ECONNABORTED') {
-        throw new Error(`Ollama request timed out after ${REQUEST_TIMEOUT_MS / 1000}s`)
-      }
-      throw new Error(`Ollama request failed: ${ax.message}`)
-    }
-    throw err
+    handleConnectionError(err, baseUrl, model)
   }
 }
