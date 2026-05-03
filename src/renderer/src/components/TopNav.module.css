@@ -37,23 +37,20 @@
   align-items: center;
   justify-content: center;
   border-radius: 7px;
-  font-size: 15px;
-  color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.28);
   background: none;
   border: none;
   cursor: pointer;
-  transition: color 120ms ease, background 120ms ease;
+  transition: color 150ms ease;
   -webkit-app-region: no-drag;
 }
 
 .navItem:hover {
-  color: rgba(255, 255, 255, 0.7);
-  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.75);
 }
 
 .navItem.active {
   color: #fff;
-  background: rgba(255, 255, 255, 0.11);
 }
 
 .statusDot {
