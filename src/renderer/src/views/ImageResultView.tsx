@@ -2,6 +2,7 @@ import React, { useCallback, useState } from 'react'
 import styles from './ImageResultView.module.css'
 import { PillButton } from '../components/PillButton'
 import { PromptBox } from '../components/PromptBox'
+import { toMediaUrl } from '../utils/mediaUrl'
 import type { ImageAnalysisResult } from '../types'
 
 export interface ImageResultViewProps {
@@ -43,7 +44,13 @@ export function ImageResultView({
       <div className={styles.column}>
         <div className={styles.header}>
           <div className={styles.thumb} aria-hidden="true">
-            {thumbnailUrl ? <img src={thumbnailUrl} alt="" /> : <span>▦</span>}
+            {thumbnailUrl ? (
+              <img src={thumbnailUrl} alt="" />
+            ) : result.imagePath ? (
+              <img src={toMediaUrl(result.imagePath)} alt="" />
+            ) : (
+              <span>▦</span>
+            )}
           </div>
           <div className={styles.headerText}>
             <div className={styles.fileName} title={fileName}>
@@ -59,6 +66,16 @@ export function ImageResultView({
             </PillButton>
           </div>
         </div>
+
+        {result.imagePath && (
+          <div className={styles.previewWrap}>
+            <img
+              className={styles.preview}
+              src={toMediaUrl(result.imagePath)}
+              alt={fileName}
+            />
+          </div>
+        )}
 
         <div className={styles.label}>SD PROMPT</div>
         <PromptBox text={result.prompt} />

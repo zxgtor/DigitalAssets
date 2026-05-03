@@ -2,11 +2,14 @@ import { ipcMain } from 'electron'
 import { getSettings } from '../store'
 import { encodeImageToBase64 } from '../services/imageEncoder'
 import { generatePromptFromImage } from '../services/ollama'
+import { registerPath } from '../services/mediaServer'
 
 export interface ImageAnalysisResult {
   prompt: string
   model: string
   durationMs: number
+  /** Absolute path to the source image, suitable for media server URLs. */
+  imagePath?: string
 }
 
 export function registerAnalyzeHandlers(): void {
@@ -25,10 +28,13 @@ export function registerAnalyzeHandlers(): void {
         model: settings.ollamaModel,
         imageBase64
       })
+      // Allow renderer to load the source image via the media server.
+      registerPath(filePath)
       return {
         prompt,
         model: settings.ollamaModel,
-        durationMs: Date.now() - start
+        durationMs: Date.now() - start,
+        imagePath: filePath
       }
     }
   )

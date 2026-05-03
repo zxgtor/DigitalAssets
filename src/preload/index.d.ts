@@ -11,6 +11,7 @@ export interface ImageAnalysisResult {
   prompt: string
   model: string
   durationMs: number
+  imagePath?: string
 }
 
 export interface VideoKeyframeResult {

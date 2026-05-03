@@ -15,7 +15,7 @@
   flex-direction: column;
   gap: 18px;
   width: 100%;
-  max-width: 640px;
+  max-width: 900px;
 }
 
 .header {
@@ -71,6 +71,29 @@
 
 .headerActions {
   margin-left: auto;
+}
+
+.previewWrap {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #000;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  /* Cap to a comfortable max so portrait shots don't dominate the
+     viewport, but let landscape shots span the full column width. */
+  max-height: 70vh;
+}
+
+.preview {
+  display: block;
+  max-width: 100%;
+  max-height: 70vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
 }
 
 .label {
