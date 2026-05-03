@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import styles from './GalleryView.module.css'
 import { PillButton } from '../components/PillButton'
-import { toMediaUrl } from '../utils/mediaUrl'
+import { toMediaUrlAsync } from '../utils/mediaUrl'
 
 interface HistoryEntry {
   id: string
@@ -45,7 +45,28 @@ interface GalleryCardProps {
 
 function GalleryCard({ entry, onOpenComfy }: GalleryCardProps): React.JSX.Element {
   const [copied, setCopied] = useState(false)
+  const [bgImage, setBgImage] = useState<string>('')
+  const [videoSrc, setVideoSrc] = useState<string>('')
   const videoRef = useRef<HTMLVideoElement>(null)
+
+  // Load media URLs asynchronously
+  useEffect(() => {
+    const loadUrls = async () => {
+      try {
+        if (entry.thumbnailPath) {
+          const url = await toMediaUrlAsync(entry.thumbnailPath)
+          setBgImage(url)
+        }
+        if (entry.videoPath) {
+          const url = await toMediaUrlAsync(entry.videoPath)
+          setVideoSrc(url)
+        }
+      } catch (err) {
+        console.error('Failed to load media URLs', err)
+      }
+    }
+    void loadUrls()
+  }, [entry.thumbnailPath, entry.videoPath])
 
   const handleCopy = useCallback(async () => {
     try {
@@ -58,12 +79,12 @@ function GalleryCard({ entry, onOpenComfy }: GalleryCardProps): React.JSX.Elemen
   }, [entry.prompt])
 
   const handleMouseEnter = useCallback(() => {
-    if (entry.kind === 'video' && videoRef.current && entry.videoPath) {
+    if (entry.kind === 'video' && videoRef.current && videoSrc) {
       videoRef.current.play().catch(() => {
         // play may fail if media isn't ready
       })
     }
-  }, [entry.kind, entry.videoPath])
+  }, [entry.kind, videoSrc])
 
   const handleMouseLeave = useCallback(() => {
     if (entry.kind === 'video' && videoRef.current) {
@@ -75,10 +96,6 @@ function GalleryCard({ entry, onOpenComfy }: GalleryCardProps): React.JSX.Elemen
   const handleOpenComfy = useCallback(() => {
     onOpenComfy(entry)
   }, [entry, onOpenComfy])
-
-  // Get the background image URL
-  const bgImage = entry.thumbnailPath ? toMediaUrl(entry.thumbnailPath) : undefined
-  const videoSrc = entry.videoPath ? toMediaUrl(entry.videoPath) : undefined
 
   return (
     <div

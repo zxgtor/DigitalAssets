@@ -5,6 +5,7 @@ export interface Settings {
   ollamaModel: string
   maxKeyframes: number
   outputFolder: string
+  comfyUrl: string
 }
 
 export interface ImageAnalysisResult {
@@ -12,6 +13,8 @@ export interface ImageAnalysisResult {
   model: string
   durationMs: number
   imagePath?: string
+  historyId: string
+  thumbnailPath?: string
 }
 
 export interface VideoKeyframeResult {
@@ -31,6 +34,8 @@ export interface VideoAnalysisResult {
   videoPath?: string
   sourceTitle?: string
   sourceUrl?: string
+  historyId: string
+  thumbnailPath?: string
 }
 
 export type WorkflowJSON = Record<
@@ -41,6 +46,16 @@ export type WorkflowJSON = Record<
 export type WorkflowSaveResult =
   | { saved: true; path: string }
   | { saved: false; canceled: true }
+
+export interface ComfyOpenArgs {
+  workflow: WorkflowJSON
+  fileName: string
+}
+
+export interface ComfyOpenResult {
+  savedPath: string
+  comfyUrl: string
+}
 
 export interface HistoryEntry {
   id: string
@@ -53,6 +68,8 @@ export interface HistoryEntry {
   frameCount?: number
   durationMs?: number
   createdAt: number
+  thumbnailPath?: string
+  videoPath?: string
 }
 
 export interface Api {
@@ -93,6 +110,9 @@ export interface Api {
       workflow: WorkflowJSON
       defaultFileName: string
     }) => Promise<WorkflowSaveResult>
+  }
+  comfy: {
+    open: (args: ComfyOpenArgs) => Promise<ComfyOpenResult>
   }
 }
 
