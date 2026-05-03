@@ -7,13 +7,15 @@ export interface Settings {
   ollamaModel: string
   maxKeyframes: number
   outputFolder: string
+  comfyUrl: string
 }
 
 const DEFAULT_SETTINGS: Settings = {
   ollamaBaseUrl: 'http://localhost:11434',
   ollamaModel: 'llava',
   maxKeyframes: 8,
-  outputFolder: ''
+  outputFolder: '',
+  comfyUrl: 'http://localhost:8188'
 }
 
 function getSettingsPath(): string {

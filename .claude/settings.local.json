@@ -19,7 +19,22 @@
       "Bash(npm install *)",
       "Bash(npm run *)",
       "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); pkgs=d.get\\('packages',{}\\); keys=['node_modules/@ffprobe-installer/ffprobe','node_modules/fluent-ffmpeg','node_modules/axios','node_modules/electron']; [print\\(k.split\\('/'\\)[-1]+':', pkgs[k].get\\('version','?'\\)\\) for k in keys if k in pkgs]\")",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(npx electron-vite *)",
+      "Bash(npx electron *)",
+      "PowerShell($p = Start-Process -FilePath \"node_modules\\\\.bin\\\\electron.cmd\" -ArgumentList \"./out/main/index.js\" -PassThru -RedirectStandardOutput \"stdout.log\" -RedirectStandardError \"stderr.log\" -NoNewWindow; Start-Sleep -Seconds 4; if\\(!$p.HasExited\\){ Stop-Process -Id $p.Id -Force }; Get-Content \"stderr.log\" -Raw; \"---\"; Get-Content \"stdout.log\" -Raw)",
+      "PowerShell($p = Start-Process -FilePath \"node_modules\\\\.bin\\\\electron.cmd\" -ArgumentList \"./out/main/index.js\" -PassThru -RedirectStandardOutput \"stdout.log\" -RedirectStandardError \"stderr.log\" -NoNewWindow; Start-Sleep -Seconds 4; if\\(!$p.HasExited\\){ Stop-Process -Id $p.Id -Force; \"STILL RUNNING - app launched OK\" } else { \"EXITED with code $\\($p.ExitCode\\)\" }; \"---STDERR:\"; Get-Content \"stderr.log\" -Raw)",
+      "Bash(npm list *)",
+      "Bash(node -e ' *)",
+      "Bash(npm uninstall *)",
+      "Bash(git reset *)",
+      "Bash(curl -sL -o resources/bin/yt-dlp.exe \"https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe\")",
+      "Bash(curl -s -m 5 -o /dev/null -w \"HTTP %{http_code} | time %{time_total}s\\\\n\" http://192.168.18.2:11434/api/tags)",
+      "Bash(curl -s -m 5 http://192.168.18.2:11434/api/tags)",
+      "PowerShell($p = Start-Process -FilePath \"node_modules\\\\.bin\\\\electron.cmd\" -ArgumentList \"./out/main/index.js\" -PassThru -RedirectStandardOutput \"stdout.log\" -RedirectStandardError \"stderr.log\" -NoNewWindow; Start-Sleep -Seconds 4; if\\(!$p.HasExited\\){ Stop-Process -Id $p.Id -Force; \"OK app launches\" } else { \"EXITED $\\($p.ExitCode\\)\" }; Get-Content \"stdout.log\" -Raw | Select-String -Pattern \"mediaServer\" -SimpleMatch; \"---STDERR \\(errors only\\):\"; Get-Content \"stderr.log\" -Raw | Select-String -Pattern \"Error\" -SimpleMatch | Where-Object { $_ -notmatch \"Autofill\" } | Select-Object -First 3)",
+      "Bash(npm start *)",
+      "Bash(pkill -f \"electron-vite preview\")",
+      "Bash(cd D:\\\\\\\\Apps\\\\\\\\VideoToPrompt)"
     ]
   }
 }

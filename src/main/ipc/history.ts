@@ -1,14 +1,22 @@
 import { ipcMain } from 'electron'
 import { addHistoryEntry, clearHistory, listHistory, HistoryEntry } from '../historyStore'
+import { registerPath } from '../services/mediaServer'
 
 export function registerHistoryHandlers(): void {
   ipcMain.handle('history:list', (): HistoryEntry[] => {
-    return listHistory()
+    const entries = listHistory()
+    // Re-register persistent paths from prior sessions so the media
+    // server allows the renderer to fetch them.
+    for (const e of entries) {
+      if (e.thumbnailPath) registerPath(e.thumbnailPath)
+      if (e.videoPath) registerPath(e.videoPath)
+    }
+    return entries
   })
 
   ipcMain.handle(
     'history:add',
-    (_event, entry: Omit<HistoryEntry, 'id'>): HistoryEntry => {
+    (_event, entry: Omit<HistoryEntry, 'id'> & { id?: string }): HistoryEntry => {
       return addHistoryEntry(entry)
     }
   )

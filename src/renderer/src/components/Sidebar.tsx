@@ -15,7 +15,7 @@ interface NavSpec {
 }
 
 const NAV_ITEMS: NavSpec[] = [
-  { view: 'history', label: 'History', icon: '⊞' },
+  { view: 'gallery', label: 'Gallery', icon: '⊞' },
   { view: 'drop', label: 'Analyze', icon: '↑' },
   { view: 'settings', label: 'Settings', icon: '⚙' }
 ]

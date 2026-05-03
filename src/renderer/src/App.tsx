@@ -7,7 +7,7 @@ import { AnalyzingView } from './views/AnalyzingView'
 import { ImageResultView } from './views/ImageResultView'
 import { VideoResultView } from './views/VideoResultView'
 import { SettingsView } from './views/SettingsView'
-import { HistoryView } from './views/HistoryView'
+import { GalleryView } from './views/GalleryView'
 import { WorkflowView } from './views/WorkflowView'
 import type {
   ImageAnalysisResult,
@@ -325,8 +325,8 @@ function App(): React.JSX.Element {
         <Placeholder label="No workflow generated" />
       )
       break
-    case 'history':
-      content = <HistoryView />
+    case 'gallery':
+      content = <GalleryView />
       break
     case 'settings':
       content = <SettingsView />

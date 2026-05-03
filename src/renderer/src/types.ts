@@ -5,7 +5,7 @@ export type ViewName =
   | 'videoResult'
   | 'workflow'
   | 'settings'
-  | 'history'
+  | 'gallery'
 
 export type MediaKind = 'image' | 'video'
 

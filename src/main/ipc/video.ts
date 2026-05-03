@@ -30,6 +30,45 @@ export interface VideoAnalysisResult {
   videoPath?: string
   sourceTitle?: string
   sourceUrl?: string
+  /** Stable id used for history persistence. */
+  historyId: string
+  /** Persistent thumbnail copy under userData/thumbnails. */
+  thumbnailPath?: string
+}
+
+function makeHistoryId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+async function ensureDir(p: string): Promise<string> {
+  await fs.mkdir(p, { recursive: true })
+  return p
+}
+
+async function persistThumbnail(srcPath: string, id: string): Promise<string> {
+  try {
+    const dir = await ensureDir(join(app.getPath('userData'), 'thumbnails'))
+    const dest = join(dir, `${id}.jpg`)
+    await fs.copyFile(srcPath, dest)
+    registerPath(dest)
+    return dest
+  } catch (err) {
+    console.error('[video] thumbnail copy failed', err)
+    return ''
+  }
+}
+
+async function persistVideo(srcPath: string, id: string): Promise<string> {
+  try {
+    const dir = await ensureDir(join(app.getPath('userData'), 'videos'))
+    const dest = join(dir, `${id}.mp4`)
+    await fs.copyFile(srcPath, dest)
+    registerPath(dest)
+    return dest
+  } catch (err) {
+    console.error('[video] video copy failed', err)
+    return ''
+  }
 }
 
 const SYNTHESIS_PROMPT_PREFIX = `You are synthesizing a single, dense Stable Diffusion / AnimateDiff prompt that describes an entire short video clip. You will be given per-keyframe prompts in chronological order.
@@ -114,7 +153,8 @@ async function analyzeLocalVideo(filePath: string): Promise<VideoAnalysisResult>
     width: meta.width,
     height: meta.height,
     keyframes,
-    masterPrompt
+    masterPrompt,
+    historyId: makeHistoryId()
   }
 }
 
@@ -131,7 +171,17 @@ export function registerVideoHandlers(): void {
       // local media server.
       registerPath(filePath)
       registerPaths(result.keyframes.map((k) => k.thumbnailPath))
-      return { ...result, videoPath: filePath }
+
+      // Persistent thumbnail (first keyframe). Local video stays as-is —
+      // it lives on the user's filesystem already.
+      const firstFrame = result.keyframes[0]?.thumbnailPath
+      const thumb = firstFrame ? await persistThumbnail(firstFrame, result.historyId) : ''
+
+      return {
+        ...result,
+        videoPath: filePath,
+        thumbnailPath: thumb || undefined
+      }
     }
   )
 
@@ -148,7 +198,19 @@ export function registerVideoHandlers(): void {
       const result = await analyzeLocalVideo(filePath)
       registerPath(filePath)
       registerPaths(result.keyframes.map((k) => k.thumbnailPath))
-      return { ...result, videoPath: filePath, sourceTitle: title, sourceUrl: url }
+
+      // YouTube downloads live in temp — copy both thumbnail and video to userData.
+      const firstFrame = result.keyframes[0]?.thumbnailPath
+      const thumb = firstFrame ? await persistThumbnail(firstFrame, result.historyId) : ''
+      const persistedVideo = await persistVideo(filePath, result.historyId)
+
+      return {
+        ...result,
+        videoPath: persistedVideo || filePath,
+        sourceTitle: title,
+        sourceUrl: url,
+        thumbnailPath: thumb || undefined
+      }
     }
   )
 }

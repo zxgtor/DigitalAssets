@@ -13,6 +13,10 @@ export interface HistoryEntry {
   frameCount?: number
   durationMs?: number
   createdAt: number
+  /** Persistent thumbnail (under userData/thumbnails). */
+  thumbnailPath?: string
+  /** Playable video — local source path or persisted copy under userData/videos. */
+  videoPath?: string
 }
 
 const MAX_ENTRIES = 100
@@ -41,11 +45,14 @@ export function listHistory(): HistoryEntry[] {
   return readFromDisk()
 }
 
-export function addHistoryEntry(entry: Omit<HistoryEntry, 'id'>): HistoryEntry {
+export function addHistoryEntry(
+  entry: Omit<HistoryEntry, 'id'> & { id?: string }
+): HistoryEntry {
   const entries = readFromDisk()
+  const { id: providedId, ...rest } = entry
   const newEntry: HistoryEntry = {
-    ...entry,
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    ...rest,
+    id: providedId ?? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   }
   // Prepend newest first, cap at MAX_ENTRIES
   const next = [newEntry, ...entries].slice(0, MAX_ENTRIES)

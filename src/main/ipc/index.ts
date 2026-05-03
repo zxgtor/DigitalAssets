@@ -4,6 +4,7 @@ import { registerAnalyzeHandlers } from './analyze'
 import { registerVideoHandlers } from './video'
 import { registerHistoryHandlers } from './history'
 import { registerWorkflowHandlers } from './workflow'
+import { registerComfyHandlers } from './comfy'
 import { checkHealth, listModels } from '../services/ollama'
 import { getMediaPort } from '../services/mediaServer'
 
@@ -56,4 +57,5 @@ export function registerIpcHandlers(): void {
   registerVideoHandlers()
   registerHistoryHandlers()
   registerWorkflowHandlers()
+  registerComfyHandlers()
 }
