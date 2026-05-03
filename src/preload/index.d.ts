@@ -59,6 +59,10 @@ export interface Api {
     set: (partial: Partial<Settings>) => Promise<Settings>
     reset: () => Promise<Settings>
   }
+  ollama: {
+    checkHealth: (baseUrl: string) => Promise<boolean>
+    listModels: (baseUrl: string) => Promise<string[]>
+  }
   analyze: {
     image: (filePath: string) => Promise<ImageAnalysisResult>
     video: (filePath: string) => Promise<VideoAnalysisResult>

@@ -37,12 +37,10 @@ export function SettingsView(): React.JSX.Element {
     setLoadingModels(true)
     setError(null)
     try {
-      // Use the Ollama tags endpoint directly from renderer (same host as user configured)
-      const url = `${form.ollamaBaseUrl.replace(/\/+$/, '')}/api/tags`
-      const res = await fetch(url)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = (await res.json()) as { models?: Array<{ name?: string }> }
-      const names = (data.models ?? []).map((m) => m.name ?? '').filter(Boolean)
+      // Route through main process — renderer-side fetch hits CORS for any
+      // non-localhost Ollama URL (LAN, remote, etc.) since Ollama doesn't
+      // ship CORS headers and the renderer is a different origin.
+      const names = await window.api.ollama.listModels(form.ollamaBaseUrl)
       setAvailableModels(names)
     } catch (err) {
       setError(`Could not reach Ollama: ${(err as Error).message}`)

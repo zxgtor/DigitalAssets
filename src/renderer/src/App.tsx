@@ -178,13 +178,14 @@ function App(): React.JSX.Element {
       .catch(() => { /* keep default */ })
   }, [])
 
-  // Poll Ollama health endpoint every 20 seconds.
+  // Poll Ollama health endpoint every 20 seconds — via IPC so we sidestep
+  // CORS/origin issues for non-localhost Ollama URLs (LAN, remote).
   useEffect(() => {
     let active = true
     const check = async (): Promise<void> => {
       try {
-        const res = await fetch(`${ollamaUrlRef.current}/api/tags`)
-        if (active) setOllamaStatus(res.ok ? 'connected' : 'error')
+        const ok = await window.api.ollama.checkHealth(ollamaUrlRef.current)
+        if (active) setOllamaStatus(ok ? 'connected' : 'error')
       } catch {
         if (active) setOllamaStatus('error')
       }

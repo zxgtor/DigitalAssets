@@ -61,6 +61,12 @@ const api = {
       ipcRenderer.invoke('settings:set', partial),
     reset: (): Promise<Settings> => ipcRenderer.invoke('settings:reset')
   },
+  ollama: {
+    checkHealth: (baseUrl: string): Promise<boolean> =>
+      ipcRenderer.invoke('ollama:checkHealth', baseUrl),
+    listModels: (baseUrl: string): Promise<string[]> =>
+      ipcRenderer.invoke('ollama:listModels', baseUrl)
+  },
   analyze: {
     image: (filePath: string): Promise<ImageAnalysisResult> =>
       ipcRenderer.invoke('analyze:image', { filePath }),
