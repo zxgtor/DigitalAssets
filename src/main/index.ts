@@ -1,19 +1,9 @@
-import { app, shell, BrowserWindow, protocol, net } from 'electron'
+import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
-import { pathToFileURL } from 'url'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { registerIpcHandlers } from './ipc'
-
-// Register `media:` as a privileged scheme so the renderer can load
-// keyframe thumbnails and analyzed videos (which live in temp dirs)
-// without disabling webSecurity.
-protocol.registerSchemesAsPrivileged([
-  {
-    scheme: 'media',
-    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, bypassCSP: true }
-  }
-])
+import { startMediaServer } from './services/mediaServer'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -52,25 +42,16 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.videotoprompt')
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // media://<absolute-path-with-forward-slashes> -> file on disk.
-  // The renderer encodes the absolute path into the URL host+path; we
-  // decode it back and stream the file via Chromium's net module.
-  protocol.handle('media', (request) => {
-    // Reconstruct: drop the leading "media://" scheme, decode percent-escapes.
-    let raw = decodeURIComponent(request.url.slice('media://'.length))
-    // Strip a leading slash that comes from an empty host on Windows
-    // (media:///D:/foo -> /D:/foo). Path objects on Windows hate that.
-    if (/^\/[A-Za-z]:/.test(raw)) raw = raw.slice(1)
-    const fileUrl = pathToFileURL(raw).toString()
-    return net.fetch(fileUrl)
-  })
+  // Start the local media server BEFORE registering IPC handlers, so
+  // the analyze handlers can register paths against it.
+  await startMediaServer()
 
   registerIpcHandlers()
 

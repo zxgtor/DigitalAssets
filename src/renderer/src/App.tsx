@@ -167,6 +167,12 @@ function App(): React.JSX.Element {
     setActiveView(workflowKind === 'image' ? 'imageResult' : 'videoResult')
   }, [workflowKind])
 
+  // Warm the media-server port cache so toMediaUrl() returns a real URL
+  // the first time anything tries to render a thumbnail/video.
+  useEffect(() => {
+    void import('./utils/mediaUrl').then((m) => m.primeMediaPort())
+  }, [])
+
   const ollamaUrlRef = useRef<string>('http://localhost:11434')
 
   // Sync URL ref whenever settings load/change — polling reads from this ref

@@ -5,6 +5,7 @@ import { registerVideoHandlers } from './video'
 import { registerHistoryHandlers } from './history'
 import { registerWorkflowHandlers } from './workflow'
 import { checkHealth, listModels } from '../services/ollama'
+import { getMediaPort } from '../services/mediaServer'
 
 export function registerIpcHandlers(): void {
   ipcMain.handle('settings:get', () => {
@@ -28,6 +29,8 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('ollama:listModels', async (_event, baseUrl: string): Promise<string[]> => {
     return listModels(baseUrl)
   })
+
+  ipcMain.handle('media:getPort', (): number => getMediaPort())
 
   registerAnalyzeHandlers()
   registerVideoHandlers()

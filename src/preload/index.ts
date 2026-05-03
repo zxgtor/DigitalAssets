@@ -68,6 +68,9 @@ const api = {
     listModels: (baseUrl: string): Promise<string[]> =>
       ipcRenderer.invoke('ollama:listModels', baseUrl)
   },
+  media: {
+    getPort: (): Promise<number> => ipcRenderer.invoke('media:getPort')
+  },
   analyze: {
     image: (filePath: string): Promise<ImageAnalysisResult> =>
       ipcRenderer.invoke('analyze:image', { filePath }),

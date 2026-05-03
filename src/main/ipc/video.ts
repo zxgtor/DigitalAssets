@@ -10,6 +10,7 @@ import {
   SD_PROMPT_INSTRUCTION
 } from '../services/ollama'
 import { downloadYouTubeVideo } from '../services/youtube'
+import { registerPath, registerPaths } from '../services/mediaServer'
 
 export interface VideoKeyframeResult {
   timeSec: number
@@ -105,6 +106,10 @@ export function registerVideoHandlers(): void {
         throw new Error('analyze:video requires a filePath')
       }
       const result = await analyzeLocalVideo(filePath)
+      // Allow the renderer to load the video + thumbnails through the
+      // local media server.
+      registerPath(filePath)
+      registerPaths(result.keyframes.map((k) => k.thumbnailPath))
       return { ...result, videoPath: filePath }
     }
   )
@@ -120,6 +125,8 @@ export function registerVideoHandlers(): void {
       const tmpDir = join(app.getPath('temp'), 'videotoprompt', String(Date.now()))
       const { filePath, title } = await downloadYouTubeVideo(url, tmpDir)
       const result = await analyzeLocalVideo(filePath)
+      registerPath(filePath)
+      registerPaths(result.keyframes.map((k) => k.thumbnailPath))
       return { ...result, videoPath: filePath, sourceTitle: title, sourceUrl: url }
     }
   )

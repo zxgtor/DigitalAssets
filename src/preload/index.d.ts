@@ -64,6 +64,9 @@ export interface Api {
     checkHealth: (baseUrl: string) => Promise<boolean>
     listModels: (baseUrl: string) => Promise<string[]>
   }
+  media: {
+    getPort: () => Promise<number>
+  }
   analyze: {
     image: (filePath: string) => Promise<ImageAnalysisResult>
     video: (filePath: string) => Promise<VideoAnalysisResult>
