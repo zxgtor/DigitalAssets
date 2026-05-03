@@ -32,8 +32,26 @@ export interface VideoAnalysisResult {
   sourceUrl?: string
 }
 
-const SYNTHESIS_PROMPT_PREFIX =
-  'Below are Stable Diffusion prompts for keyframes from a video. Synthesize them into a single cohesive Stable Diffusion prompt that captures the overall scene, mood, style, and motion. Output only the prompt, comma-separated tags, no explanation.\n\nFrame prompts:\n'
+const SYNTHESIS_PROMPT_PREFIX = `You are synthesizing a single, dense Stable Diffusion / AnimateDiff prompt that describes an entire short video clip. You will be given per-keyframe prompts in chronological order.
+
+Your job: produce ONE comma-separated prompt that captures:
+1. SUBJECT — what/who is the main subject across the clip, with specific visual details (clothing, features, pose).
+2. SCENE — environment, setting, time of day, weather, era.
+3. ACTION / MOTION — what is happening over time. Use motion descriptors that AnimateDiff understands: "camera panning left", "subject walking forward", "wind blowing hair", "slow dolly in", "tracking shot", "subject turning head", "leaves falling", "rain pouring".
+4. CAMERA — lens, framing, shot type, any camera moves observed across the frames.
+5. LIGHTING — light source(s), direction, quality, any changes over time (sun setting, flickering neon).
+6. COLOR — dominant palette and grading.
+7. STYLE — medium, art direction, era, recognizable studio/artist references.
+8. QUALITY TAGS — cinematic, highly detailed, smooth motion, 24fps, sharp focus, masterpiece.
+
+Rules:
+- Merge overlapping detail across frames; do NOT just concatenate.
+- Resolve contradictions by going with the most prevalent description.
+- Keep it dense and specific — favor concrete nouns and adjectives over generic words.
+- Output ONLY the comma-separated prompt. No labels, no preamble, no explanation, no quotes. Aim for 80–160 words.
+
+Per-frame prompts (chronological):
+`
 
 async function analyzeLocalVideo(filePath: string): Promise<VideoAnalysisResult> {
   const start = Date.now()
@@ -77,9 +95,12 @@ async function analyzeLocalVideo(filePath: string): Promise<VideoAnalysisResult>
     })
   }
 
-  // 5. Synthesize a master prompt (text-only)
-  const numbered = keyframes.map((k, i) => `${i + 1}. ${k.prompt}`).join('\n')
-  const synthesisPrompt = `${SYNTHESIS_PROMPT_PREFIX}${numbered}`
+  // 5. Synthesize a master prompt (text-only). Include timestamps so the
+  //    model can reason about motion and temporal changes.
+  const numbered = keyframes
+    .map((k, i) => `${i + 1}. [t=${k.timeSec.toFixed(1)}s] ${k.prompt}`)
+    .join('\n')
+  const synthesisPrompt = `${SYNTHESIS_PROMPT_PREFIX}${numbered}\n\nNow output the synthesized prompt:`
   const masterPrompt = await generateText({
     baseUrl: settings.ollamaBaseUrl,
     model: settings.ollamaModel,

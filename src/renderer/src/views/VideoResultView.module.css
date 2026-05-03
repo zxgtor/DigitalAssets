@@ -70,11 +70,14 @@
 
 .videoPlayer {
   width: 100%;
-  max-height: 360px;
+  max-height: 70vh;
   background-color: #000;
   border: 1px solid var(--border);
   border-radius: 8px;
   outline: none;
+  /* keep the video's intrinsic aspect ratio centered without cropping */
+  object-fit: contain;
+  display: block;
 }
 
 .label {

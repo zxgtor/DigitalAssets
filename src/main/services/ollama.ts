@@ -1,9 +1,18 @@
 import axios, { AxiosError } from 'axios'
 
-export const SD_PROMPT_INSTRUCTION = `Analyze this image and generate a detailed Stable Diffusion prompt that would recreate it.
-Output only the prompt as a single line of comma-separated tags.
-Include: subject, style, lighting, composition, camera/lens, mood, color palette, quality tags.
-Do not include any explanation, markdown, or labels — only the prompt.`
+export const SD_PROMPT_INSTRUCTION = `You are a Stable Diffusion prompt engineer. Look at this image carefully and write a single, dense Stable Diffusion prompt that would faithfully recreate it.
+
+Required fields, in this order, joined by commas (no labels, no line breaks, no explanation):
+1. SUBJECT — main subject(s) with concrete visual details: age, gender, ethnicity, hair color/style, clothing, expression, pose, action; or for objects/scenes: type, materials, condition, key features.
+2. SCENE — environment, setting, foreground/background elements, props, weather, time of day.
+3. COMPOSITION — framing (close-up / medium shot / wide / aerial), shot angle (low / eye-level / high / overhead), depth of field (shallow / deep), rule-of-thirds or centered subject.
+4. CAMERA — lens (35mm / 50mm / 85mm / wide-angle / telephoto / fisheye), aperture (f/1.4 etc), focus point.
+5. LIGHTING — source (natural / studio / neon / candlelight), direction (rim, backlit, side, top), quality (soft / hard / diffused), shadows, highlights.
+6. COLOR — dominant palette, saturation level, color grading (teal-and-orange, warm tones, desaturated, muted, etc).
+7. STYLE — medium (photo / oil painting / 3D render / anime / pixel art), specific artist or studio reference if recognizable, era.
+8. QUALITY TAGS — masterpiece, highly detailed, sharp focus, 8k, hdr, cinematic.
+
+Output ONLY the comma-separated prompt. No preamble, no markdown, no quotes, no trailing notes. 60–120 words is ideal.`
 
 const REQUEST_TIMEOUT_MS = 120_000
 
