@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { ipcMain, dialog, BrowserWindow } from 'electron'
 import { getSettings, resetSettings, setSettings, Settings } from '../store'
 import { registerAnalyzeHandlers } from './analyze'
 import { registerVideoHandlers } from './video'
@@ -31,6 +31,26 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('media:getPort', (): number => getMediaPort())
+
+  ipcMain.handle('dialog:openMedia', async (event): Promise<string | null> => {
+    const win = BrowserWindow.fromWebContents(event.sender) ?? undefined
+    const result = await dialog.showOpenDialog(win!, {
+      title: 'Choose an image or video',
+      properties: ['openFile'],
+      filters: [
+        {
+          name: 'Image or Video',
+          extensions: [
+            'png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp',
+            'mp4', 'mov', 'mkv', 'webm', 'avi'
+          ]
+        },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    return result.filePaths[0]
+  })
 
   registerAnalyzeHandlers()
   registerVideoHandlers()

@@ -1,11 +1,10 @@
-import React, { useCallback, useRef, useState } from 'react'
+import React, { useCallback, useState } from 'react'
 import styles from './DropView.module.css'
 import { PillButton } from '../components/PillButton'
 import type { MediaKind } from '../types'
 
 const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp']
 const VIDEO_EXTS = ['mp4', 'mov', 'mkv', 'webm', 'avi']
-const ACCEPT = '.png,.jpg,.jpeg,.webp,.mp4,.mov,.mkv,image/*,video/*'
 
 function detectKind(name: string): MediaKind | null {
   const ext = name.split('.').pop()?.toLowerCase() ?? ''
@@ -26,15 +25,16 @@ export function DropView({
   const [isDragOver, setIsDragOver] = useState(false)
   const [urlValue, setUrlValue] = useState('')
   const [urlError, setUrlError] = useState<string | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [pickError, setPickError] = useState<string | null>(null)
 
-  const handleFile = useCallback(
-    (file: File): void => {
-      const kind = detectKind(file.name)
-      if (!kind) return
-      // Electron exposes the absolute path on File objects via the non-standard `path` field.
-      const anyFile = file as File & { path?: string }
-      const filePath = anyFile.path ?? file.name
+  const acceptPath = useCallback(
+    (filePath: string, displayName: string, file?: File): void => {
+      const kind = detectKind(displayName)
+      if (!kind) {
+        setPickError(`Unsupported file type: ${displayName}`)
+        return
+      }
+      setPickError(null)
       onFileSelected(filePath, kind, file)
     },
     [onFileSelected]
@@ -43,6 +43,7 @@ export function DropView({
   const onDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
     e.stopPropagation()
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
     setIsDragOver(true)
   }, [])
 
@@ -58,24 +59,37 @@ export function DropView({
       e.stopPropagation()
       setIsDragOver(false)
       const file = e.dataTransfer.files?.[0]
-      if (file) handleFile(file)
+      if (!file) return
+      // Electron 32+ removed the non-standard File.path. Use webUtils
+      // (exposed via preload) to recover the absolute path.
+      const absPath = window.api.getFilePath(file)
+      if (!absPath) {
+        setPickError(
+          `Could not read the file path for "${file.name}". Try the Upload File button instead.`
+        )
+        return
+      }
+      acceptPath(absPath, file.name, file)
     },
-    [handleFile]
+    [acceptPath]
   )
 
-  const openPicker = useCallback((e?: React.MouseEvent) => {
-    e?.stopPropagation()
-    inputRef.current?.click()
-  }, [])
-
-  const onInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0]
-      if (file) handleFile(file)
-      // reset so the same file can be reselected
-      e.target.value = ''
+  // Open a native file picker through the main process. Returns the
+  // absolute path directly — no dependency on the deprecated File.path.
+  const openPicker = useCallback(
+    async (e?: React.SyntheticEvent) => {
+      e?.stopPropagation()
+      try {
+        const filePath = await window.api.dialog.openMedia()
+        if (!filePath) return
+        const name = filePath.split(/[\\/]/).pop() ?? filePath
+        acceptPath(filePath, name)
+      } catch (err) {
+        console.error('openMedia failed', err)
+        setPickError(`Could not open file picker: ${(err as Error).message}`)
+      }
     },
-    [handleFile]
+    [acceptPath]
   )
 
   const submitUrl = useCallback(
@@ -117,22 +131,26 @@ export function DropView({
         onDragEnter={onDragOver}
         onDragLeave={onDragLeave}
         onDrop={onDrop}
-        onClick={() => openPicker()}
+        onClick={() => void openPicker()}
         role="button"
         tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') void openPicker(e)
+        }}
       >
         <div className={styles.iconCircle} aria-hidden="true">
           ↑
         </div>
         <div className={styles.title}>Analyze Your Media</div>
         <div className={styles.subtitle}>
-          Drop an image or video to generate a Stable Diffusion prompt
+          Drop an image or video here, or click to choose a file
         </div>
         <div className={styles.actions}>
-          <PillButton variant="primary" onClick={openPicker}>
+          <PillButton variant="primary" onClick={(e) => void openPicker(e)}>
             + Upload File
           </PillButton>
         </div>
+        {pickError && <div className={styles.urlError}>{pickError}</div>}
 
         <div
           className={styles.urlSection}
@@ -164,14 +182,6 @@ export function DropView({
           </div>
           {urlError ? <div className={styles.urlError}>{urlError}</div> : null}
         </div>
-
-        <input
-          ref={inputRef}
-          type="file"
-          accept={ACCEPT}
-          className={styles.hiddenInput}
-          onChange={onInputChange}
-        />
       </div>
     </div>
   )

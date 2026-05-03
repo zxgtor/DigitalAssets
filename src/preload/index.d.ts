@@ -67,6 +67,10 @@ export interface Api {
   media: {
     getPort: () => Promise<number>
   }
+  dialog: {
+    openMedia: () => Promise<string | null>
+  }
+  getFilePath: (file: File) => string
   analyze: {
     image: (filePath: string) => Promise<ImageAnalysisResult>
     video: (filePath: string) => Promise<VideoAnalysisResult>

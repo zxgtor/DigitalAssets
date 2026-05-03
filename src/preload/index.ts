@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
 export interface Settings {
@@ -70,6 +70,18 @@ const api = {
   },
   media: {
     getPort: (): Promise<number> => ipcRenderer.invoke('media:getPort')
+  },
+  dialog: {
+    /** Open a native file picker. Returns the chosen absolute path, or null if cancelled. */
+    openMedia: (): Promise<string | null> => ipcRenderer.invoke('dialog:openMedia')
+  },
+  /** Resolve the absolute path of a File object obtained from drag-drop or input.files. */
+  getFilePath: (file: File): string => {
+    try {
+      return webUtils.getPathForFile(file)
+    } catch {
+      return ''
+    }
   },
   analyze: {
     image: (filePath: string): Promise<ImageAnalysisResult> =>
