@@ -28,11 +28,22 @@ function IconSpark(): React.JSX.Element {
   )
 }
 
-function IconSettings(): React.JSX.Element {
+function IconGenerate(): React.JSX.Element {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <circle cx="8" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.4"/>
-      <path d="M8 1v1.5M8 13.5V15M15 8h-1.5M2.5 8H1M12.95 3.05l-1.06 1.06M4.11 11.89l-1.06 1.06M12.95 12.95l-1.06-1.06M4.11 4.11L3.05 3.05" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+      <circle cx="2.5" cy="8" r="1.8" stroke="currentColor" strokeWidth="1.3"/>
+      <circle cx="13.5" cy="3.5" r="1.8" stroke="currentColor" strokeWidth="1.3"/>
+      <circle cx="13.5" cy="12.5" r="1.8" stroke="currentColor" strokeWidth="1.3"/>
+      <path d="M4.3 7.3L11.7 4.2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+      <path d="M4.3 8.7L11.7 11.8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+    </svg>
+  )
+}
+
+function IconSettings(): React.JSX.Element {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.858 2.929 2.929 0 0 1 0 5.858z"/>
     </svg>
   )
 }
@@ -40,6 +51,7 @@ function IconSettings(): React.JSX.Element {
 const NAV_ITEMS: { view: ViewName; Icon: () => React.JSX.Element; label: string }[] = [
   { view: 'gallery', Icon: IconGallery, label: 'Gallery' },
   { view: 'drop', Icon: IconSpark, label: 'Analyze' },
+  { view: 'generate', Icon: IconGenerate, label: 'Generate' },
   { view: 'settings', Icon: IconSettings, label: 'Settings' }
 ]
 

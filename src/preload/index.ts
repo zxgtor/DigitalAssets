@@ -136,7 +136,14 @@ const api = {
   },
   comfy: {
     open: (args: ComfyOpenArgs): Promise<ComfyOpenResult> =>
-      ipcRenderer.invoke('comfy:open', args)
+      ipcRenderer.invoke('comfy:open', args),
+    queue: (args: { workflow: WorkflowJSON; comfyUrl: string }): Promise<{ promptId: string }> =>
+      ipcRenderer.invoke('comfy:queue', args),
+    getStatus: (args: { promptId: string; comfyUrl: string }): Promise<{
+      status: 'pending' | 'running' | 'done' | 'error' | 'unknown'
+      queuePosition?: number
+      outputs?: string[]
+    }> => ipcRenderer.invoke('comfy:getStatus', args)
   },
   app: {
     onNavigate: (callback: (payload: { page: string; file?: string }) => void): (() => void) => {

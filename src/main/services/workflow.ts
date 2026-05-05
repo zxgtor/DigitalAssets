@@ -85,7 +85,7 @@ export function buildImageWorkflow(opts: BuildImageWorkflowOptions): WorkflowJSO
     },
     '9': {
       class_type: 'SaveImage',
-      inputs: { images: ['8', 0], filename_prefix: 'VideoToPrompt' }
+      inputs: { images: ['8', 0], filename_prefix: 'DigitalAssets' }
     }
   }
 }
@@ -169,7 +169,7 @@ export function buildAnimateDiffWorkflow(
         images: ['7', 0],
         frame_rate: fps,
         loop_count: 0,
-        filename_prefix: 'VideoToPrompt',
+        filename_prefix: 'DigitalAssets',
         format: 'video/h264-mp4',
         pix_fmt: 'yuv420p',
         crf: 19,

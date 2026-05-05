@@ -1,7 +1,7 @@
 {
-  "name": "videotoprompt",
+  "name": "digitalassets",
   "version": "1.0.0",
-  "description": "An Electron application with React and TypeScript for converting videos to prompts",
+  "description": "An Electron application with React and TypeScript for analyzing digital assets and generating AI prompts",
   "main": "./out/main/index.js",
   "author": "example.com",
   "homepage": "https://electron-vite.org",

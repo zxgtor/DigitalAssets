@@ -112,7 +112,7 @@ async function analyzeLocalVideo(filePath: string): Promise<VideoAnalysisResult>
   }
 
   // 2. Create a unique temp dir
-  const tmpRoot = join(app.getPath('temp'), 'videotoprompt', String(Date.now()))
+  const tmpRoot = join(app.getPath('temp'), 'digitalassets', String(Date.now()))
   await fs.mkdir(tmpRoot, { recursive: true })
 
   // 3. Extract evenly-spaced keyframes
@@ -204,7 +204,7 @@ export function registerVideoHandlers(): void {
         throw new Error('analyze:youtube requires a url')
       }
 
-      const tmpDir = join(app.getPath('temp'), 'videotoprompt', String(Date.now()))
+      const tmpDir = join(app.getPath('temp'), 'digitalassets', String(Date.now()))
       const { filePath, title } = await downloadYouTubeVideo(url, tmpDir)
       const result = await analyzeLocalVideo(filePath)
       registerPath(filePath)

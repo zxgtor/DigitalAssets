@@ -142,6 +142,31 @@ export function SettingsView(): React.JSX.Element {
 
         <div className={styles.divider} />
 
+        {/* ComfyUI section */}
+        <div className={styles.section}>
+          <div className={styles.sectionTitle}>ComfyUI</div>
+
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="comfyUrl">
+              Server URL
+            </label>
+            <input
+              id="comfyUrl"
+              className={styles.input}
+              type="text"
+              value={form.comfyUrl}
+              onChange={(e) => set('comfyUrl', e.target.value)}
+              placeholder="http://localhost:8188"
+              spellCheck={false}
+            />
+            <span className={styles.hint}>
+              URL of your ComfyUI instance. Used to queue and monitor generation.
+            </span>
+          </div>
+        </div>
+
+        <div className={styles.divider} />
+
         {/* Video section */}
         <div className={styles.section}>
           <div className={styles.sectionTitle}>Video</div>
@@ -161,31 +186,6 @@ export function SettingsView(): React.JSX.Element {
             />
             <span className={styles.hint}>
               Number of frames extracted per video (1–16). More frames = better coverage, slower analysis.
-            </span>
-          </div>
-        </div>
-
-        <div className={styles.divider} />
-
-        {/* ComfyUI section */}
-        <div className={styles.section}>
-          <div className={styles.sectionTitle}>ComfyUI</div>
-
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor="comfyUrl">
-              Server URL
-            </label>
-            <input
-              id="comfyUrl"
-              className={styles.input}
-              type="text"
-              value={form.comfyUrl}
-              onChange={(e) => set('comfyUrl', e.target.value)}
-              placeholder="http://localhost:8188"
-              spellCheck={false}
-            />
-            <span className={styles.hint}>
-              URL of your ComfyUI instance. Used to open workflows.
             </span>
           </div>
         </div>

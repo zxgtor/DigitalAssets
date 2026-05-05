@@ -6,13 +6,13 @@ import { registerIpcHandlers } from './ipc'
 import { startMediaServer } from './services/mediaServer'
 
 // ─── Agent deep-link protocol ─────────────────────────────────────────────────
-// Supports: videotoprompt://gallery
-//           videotoprompt://analyze?file=/abs/path/to/file
-//           videotoprompt://generate
-// Can also be triggered by CLI arg on launch:  --url=videotoprompt://gallery
+// Supports: digitalassets://gallery
+//           digitalassets://analyze?file=/abs/path/to/file
+//           digitalassets://generate
+// Can also be triggered by CLI arg on launch:  --url=digitalassets://gallery
 // ─────────────────────────────────────────────────────────────────────────────
 
-const PROTOCOL = 'videotoprompt'
+const PROTOCOL = 'digitalassets'
 
 /** Parse a deep-link URL into a navigate payload and broadcast to renderer. */
 function handleDeepLink(url: string): void {
@@ -32,12 +32,12 @@ function handleDeepLink(url: string): void {
   }
 }
 
-/** Extract a videotoprompt:// URL from process.argv if present. */
+/** Extract a digitalassets:// URL from process.argv if present. */
 function deepLinkFromArgs(argv: string[]): string | null {
   return argv.find((a) => a.startsWith(`${PROTOCOL}://`)) ?? null
 }
 
-// Register as default handler for videotoprompt:// URLs
+// Register as default handler for digitalassets:// URLs
 if (!is.dev) {
   app.setAsDefaultProtocolClient(PROTOCOL)
 }
@@ -105,7 +105,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(async () => {
-  electronApp.setAppUserModelId('com.videotoprompt')
+  electronApp.setAppUserModelId('com.digitalassets')
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)

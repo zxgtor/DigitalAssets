@@ -2,21 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import styles from './GalleryView.module.css'
 import { PillButton } from '../components/PillButton'
 import { toMediaUrlAsync } from '../utils/mediaUrl'
-
-interface HistoryEntry {
-  id: string
-  kind: 'image' | 'video'
-  filePath: string
-  fileName: string
-  prompt: string
-  model?: string
-  durationSec?: number
-  frameCount?: number
-  durationMs?: number
-  createdAt: number
-  thumbnailPath?: string
-  videoPath?: string
-}
+import type { HistoryEntry } from '../types'
 
 function formatDate(ts: number): string {
   const d = new Date(ts)
@@ -40,11 +26,11 @@ function formatMeta(entry: HistoryEntry): string {
 
 interface GalleryCardProps {
   entry: HistoryEntry
-  onOpenComfy: (entry: HistoryEntry) => void
+  onOpenGenerate: (entry: HistoryEntry) => void
   onDelete: (id: string) => void
 }
 
-function GalleryCard({ entry, onOpenComfy, onDelete }: GalleryCardProps): React.JSX.Element {
+function GalleryCard({ entry, onOpenGenerate, onDelete }: GalleryCardProps): React.JSX.Element {
   const [copied, setCopied] = useState(false)
   const [bgImage, setBgImage] = useState<string>('')
   const [videoSrc, setVideoSrc] = useState<string>('')
@@ -94,9 +80,9 @@ function GalleryCard({ entry, onOpenComfy, onDelete }: GalleryCardProps): React.
     }
   }, [entry.kind])
 
-  const handleOpenComfy = useCallback(() => {
-    onOpenComfy(entry)
-  }, [entry, onOpenComfy])
+  const handleOpenGenerate = useCallback(() => {
+    onOpenGenerate(entry)
+  }, [entry, onOpenGenerate])
 
   const handleDelete = useCallback(() => {
     onDelete(entry.id)
@@ -148,9 +134,9 @@ function GalleryCard({ entry, onOpenComfy, onDelete }: GalleryCardProps): React.
           <button
             type="button"
             className={styles.actionIcon}
-            onClick={handleOpenComfy}
-            title="Open in ComfyUI"
-            aria-label="Open in ComfyUI"
+            onClick={handleOpenGenerate}
+            title="Generate in ComfyUI"
+            aria-label="Generate in ComfyUI"
           >
             ⊕
           </button>
@@ -169,7 +155,11 @@ function GalleryCard({ entry, onOpenComfy, onDelete }: GalleryCardProps): React.
   )
 }
 
-export function GalleryView(): React.JSX.Element {
+interface GalleryViewProps {
+  onOpenGenerate: (entry: HistoryEntry) => void
+}
+
+export function GalleryView({ onOpenGenerate }: GalleryViewProps): React.JSX.Element {
   const [entries, setEntries] = useState<HistoryEntry[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -195,27 +185,6 @@ export function GalleryView(): React.JSX.Element {
     setEntries([])
   }, [])
 
-  const handleOpenComfy = useCallback(
-    async (entry: HistoryEntry) => {
-      try {
-        // Build workflow from the entry's prompt
-        const workflow = await window.api.workflow.buildImage({
-          prompt: entry.prompt
-        })
-        // Open in ComfyUI (saves JSON + opens folder + browser)
-        await (window.api as any).comfy?.open?.({
-          workflow,
-          fileName: entry.fileName
-        })
-      } catch (err) {
-        console.error('ComfyUI open failed', err)
-        // eslint-disable-next-line no-alert
-        alert(`Failed to open ComfyUI:\n\n${err instanceof Error ? err.message : String(err)}`)
-      }
-    },
-    []
-  )
-
   const handleDelete = useCallback(
     async (id: string) => {
       // eslint-disable-next-line no-alert
@@ -236,28 +205,29 @@ export function GalleryView(): React.JSX.Element {
 
   return (
     <div className={styles.wrap}>
-      <div className={styles.header}>
-        <span className={styles.heading}>Gallery</span>
-        <div className={styles.headerActions}>
-          {entries.length > 0 && <span className={styles.count}>{entries.length} entries</span>}
-          {entries.length > 0 && (
-            <PillButton variant="ghost" size="sm" onClick={handleClear}>
-              Clear all
-            </PillButton>
-          )}
+      {entries.length > 0 && (
+        <div className={styles.toolbar}>
+          <span className={styles.count}>{entries.length} items</span>
+          <PillButton variant="ghost" size="sm" onClick={handleClear}>
+            Clear all
+          </PillButton>
         </div>
-      </div>
+      )}
 
       {loading ? (
         <div className={styles.empty}>
-          <span className={styles.emptyIcon}>⊞</span>
-          <span>Loading…</span>
+          <div className={styles.emptyRing} />
+          <span className={styles.emptyLabel}>Loading…</span>
         </div>
       ) : entries.length === 0 ? (
         <div className={styles.empty}>
-          <span className={styles.emptyIcon}>⊞</span>
-          <span>No gallery yet</span>
-          <span>Analyzed files will appear here</span>
+          <svg className={styles.emptyIcon} viewBox="0 0 48 48" fill="none" aria-hidden="true">
+            <rect x="4" y="10" width="40" height="28" rx="3" stroke="currentColor" strokeWidth="1.5"/>
+            <path d="M4 22l10-8 8 7 7-5 15 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            <circle cx="15" cy="18" r="2.5" fill="currentColor" opacity="0.5"/>
+          </svg>
+          <span className={styles.emptyLabel}>Your gallery is empty</span>
+          <span className={styles.emptyHint}>Analyze an image or video to get started</span>
         </div>
       ) : (
         <div className={styles.grid}>
@@ -265,7 +235,7 @@ export function GalleryView(): React.JSX.Element {
             <GalleryCard
               key={entry.id}
               entry={entry}
-              onOpenComfy={handleOpenComfy}
+              onOpenGenerate={onOpenGenerate}
               onDelete={handleDelete}
             />
           ))}

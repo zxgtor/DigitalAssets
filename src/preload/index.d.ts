@@ -115,6 +115,12 @@ export interface Api {
   }
   comfy: {
     open: (args: ComfyOpenArgs) => Promise<ComfyOpenResult>
+    queue: (args: { workflow: WorkflowJSON; comfyUrl: string }) => Promise<{ promptId: string }>
+    getStatus: (args: { promptId: string; comfyUrl: string }) => Promise<{
+      status: 'pending' | 'running' | 'done' | 'error' | 'unknown'
+      queuePosition?: number
+      outputs?: string[]
+    }>
   }
   app: {
     onNavigate: (callback: (payload: { page: string; file?: string }) => void) => () => void

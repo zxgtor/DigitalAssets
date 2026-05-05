@@ -6,6 +6,22 @@ export type ViewName =
   | 'workflow'
   | 'settings'
   | 'gallery'
+  | 'generate'
+
+export interface HistoryEntry {
+  id: string
+  kind: 'image' | 'video'
+  filePath: string
+  fileName: string
+  prompt: string
+  model?: string
+  durationSec?: number
+  frameCount?: number
+  durationMs?: number
+  createdAt: number
+  thumbnailPath?: string
+  videoPath?: string
+}
 
 export type MediaKind = 'image' | 'video'
 

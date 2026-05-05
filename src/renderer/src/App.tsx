@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import './styles/globals.css'
 import { TopNav } from './components/TopNav'
-import { AmbientGlow } from './components/AmbientGlow'
 import { DropView } from './views/DropView'
 import { AnalyzingView } from './views/AnalyzingView'
 import { ImageResultView } from './views/ImageResultView'
@@ -9,6 +8,7 @@ import { VideoResultView } from './views/VideoResultView'
 import { SettingsView } from './views/SettingsView'
 import { GalleryView } from './views/GalleryView'
 import { WorkflowView } from './views/WorkflowView'
+import { GenerateView } from './views/GenerateView'
 import type {
   ImageAnalysisResult,
   VideoAnalysisResult,
@@ -17,7 +17,8 @@ import type {
   SelectedFile,
   ViewName,
   WorkflowJSON,
-  WorkflowKind
+  WorkflowKind,
+  HistoryEntry
 } from './types'
 
 function basename(p: string): string {
@@ -47,7 +48,7 @@ function Placeholder({ label }: { label: string }): React.JSX.Element {
 }
 
 function App(): React.JSX.Element {
-  const [activeView, setActiveView] = useState<ViewName>('drop')
+  const [activeView, setActiveView] = useState<ViewName>('gallery')
   const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null)
   const [imageResult, setImageResult] = useState<ImageAnalysisResult | null>(null)
   const [videoResult, setVideoResult] = useState<VideoAnalysisResult | null>(null)
@@ -55,6 +56,7 @@ function App(): React.JSX.Element {
   const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus>('unknown')
   const [workflow, setWorkflow] = useState<WorkflowJSON | null>(null)
   const [workflowKind, setWorkflowKind] = useState<WorkflowKind>('image')
+  const [generateEntry, setGenerateEntry] = useState<HistoryEntry | null>(null)
 
   const handleFileSelected = useCallback(
     (filePath: string, kind: MediaKind, file?: File) => {
@@ -112,6 +114,11 @@ function App(): React.JSX.Element {
 
   const handleNavigate = useCallback((view: ViewName) => {
     setActiveView(view)
+  }, [])
+
+  const handleOpenGenerate = useCallback((entry: HistoryEntry) => {
+    setGenerateEntry(entry)
+    setActiveView('generate')
   }, [])
 
   const handleNew = useCallback(() => {
@@ -363,7 +370,15 @@ function App(): React.JSX.Element {
       )
       break
     case 'gallery':
-      content = <GalleryView />
+      content = <GalleryView onOpenGenerate={handleOpenGenerate} />
+      break
+    case 'generate':
+      content = (
+        <GenerateView
+          entry={generateEntry}
+          onBack={() => handleNavigate('gallery')}
+        />
+      )
       break
     case 'settings':
       content = <SettingsView />
@@ -395,7 +410,6 @@ function App(): React.JSX.Element {
           paddingTop: '40px'
         }}
       >
-        <AmbientGlow />
         <div key={activeView} className="view-fade">
           {content}
         </div>
