@@ -1,0 +1,50 @@
+.wrap { display: flex; flex-direction: column; gap: 4px; }
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  background: none; border: none; color: var(--text); cursor: pointer;
+  padding: 6px 0; font-size: 12px; letter-spacing: 0.3px;
+  text-transform: uppercase; opacity: 0.7;
+}
+.header:hover { opacity: 1; }
+.summary { font-size: 11px; opacity: 0.7; }
+
+.list { display: flex; flex-direction: column; gap: 6px; }
+.empty { color: var(--text-muted); font-size: 12px; padding: 8px; }
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.card:hover { border-color: var(--accent); }
+.cardSelected { border-color: var(--accent); background: var(--bg-elevated); }
+
+.row1 { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.icon { font-size: 12px; }
+.status_done    { color: #4ade80; }
+.status_error   { color: #f87171; }
+.status_running { color: #60a5fa; }
+.status_pending { color: #facc15; }
+
+.id        { font-family: ui-monospace, monospace; opacity: 0.7; }
+.statusText{ flex: 1; opacity: 0.8; }
+.wsName    { font-size: 11px; opacity: 0.6; }
+
+.preview { font-size: 11px; opacity: 0.7; font-style: italic; }
+.error   { font-size: 11px; color: #f87171; }
+
+.actions { display: flex; gap: 6px; }
+.actions button {
+  background: none; border: 1px solid var(--border); color: var(--text);
+  font-size: 11px; padding: 2px 8px; border-radius: 4px; cursor: pointer;
+}
+.actions button:hover { background: var(--bg-elevated); }
+
+.clearDone {
+  background: none; border: none; color: var(--text-muted);
+  font-size: 11px; padding: 4px; cursor: pointer; text-align: right;
+}
+.clearDone:hover { color: var(--text); }
