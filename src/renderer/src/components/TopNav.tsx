@@ -1,6 +1,7 @@
 import React from 'react'
 import styles from './TopNav.module.css'
 import type { OllamaStatus, ViewName } from '../types'
+import { useWorkstationPool } from '../hooks/useWorkstationPool'
 
 export interface TopNavProps {
   activeView: ViewName
@@ -73,6 +74,10 @@ export function TopNav({
   onNavigate,
   ollamaStatus = 'unknown'
 }: TopNavProps): React.JSX.Element {
+  const { workstations } = useWorkstationPool()
+  const online = workstations.filter((w) => w.status === 'online' || w.status === 'busy').length
+  const total = workstations.length
+
   const statusClass =
     ollamaStatus === 'connected'
       ? styles.statusConnected
@@ -84,6 +89,17 @@ export function TopNav({
     <header className={styles.topNav}>
       <div className={styles.left}>
         <span className={[styles.statusDot, statusClass].join(' ')} title={`Ollama: ${ollamaStatus}`} />
+        <div
+          className={styles.statusPill}
+          title={`${online}/${total} workstations online`}
+          onClick={() => onNavigate('generate')}
+        >
+          <span
+            className={styles.pillDot}
+            style={{ background: online > 0 ? '#4ade80' : '#6b7280' }}
+          />
+          <span>{online}/{total} stations</span>
+        </div>
       </div>
       <nav className={styles.nav}>
         {NAV_ITEMS.map((item) => {
