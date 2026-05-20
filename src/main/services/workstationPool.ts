@@ -67,6 +67,8 @@ export class WorkstationPool extends EventEmitter {
   private readonly OFFLINE_AFTER_FAILURES = 3
   private jobs = new Map<string, Job>()
   private currentMode: SchedulerMode = 'lan-pool'
+  private readonly UNKNOWN_THRESHOLD = 20
+  private unknownCounts = new Map<string, number>()
 
   constructor(opts: WorkstationPoolOptions = {}) {
     super()
@@ -179,6 +181,9 @@ export class WorkstationPool extends EventEmitter {
         // fire-and-forget; refresh emits its own update event
         void this.refreshModels(ws.id)
       }
+
+      // NEW: update jobs running on this workstation
+      await this.refreshJobsFor(ws)
     } catch {
       const failures = (this.failureCounts.get(ws.id) ?? 0) + 1
       this.failureCounts.set(ws.id, failures)
@@ -186,6 +191,8 @@ export class WorkstationPool extends EventEmitter {
         ws.status = 'offline'
         ws.queueDepth = 0
       }
+      // Still try to refresh job statuses even if health check failed
+      await this.refreshJobsFor(ws)
     } finally {
       this.emit('workstations:update', this.list())
     }
@@ -214,6 +221,77 @@ export class WorkstationPool extends EventEmitter {
     })
   }
 
+  private async refreshJobsFor(ws: Workstation): Promise<void> {
+    const myJobs = Array.from(this.jobs.values()).filter(
+      (j) => j.workstationId === ws.id && (j.status === 'pending' || j.status === 'running')
+    )
+    if (myJobs.length === 0) return
+
+    // Snapshot /queue once per workstation; reuse across jobs.
+    let queueData: { queue_running: any[][]; queue_pending: any[][] } | null = null
+    try {
+      const q = await axios.get(`${ws.url}/queue`, { timeout: 3_000 })
+      queueData = { queue_running: q.data?.queue_running ?? [], queue_pending: q.data?.queue_pending ?? [] }
+    } catch { /* leave null */ }
+
+    for (const job of myJobs) {
+      if (!job.promptId) continue
+      try {
+        // 1. History first — if there, it's done.
+        const hist = await axios.get(`${ws.url}/history/${job.promptId}`, { timeout: 5_000 })
+        const entry = hist.data?.[job.promptId]
+        if (entry) {
+          const outputs: string[] = []
+          for (const nodeOut of Object.values(entry.outputs ?? {}) as Record<string, unknown>[]) {
+            const imgs = (nodeOut as { images?: { filename: string; subfolder?: string; type?: string }[] }).images
+            if (imgs) {
+              for (const img of imgs) {
+                outputs.push(
+                  `${ws.url}/view?filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder ?? '')}&type=${img.type ?? 'output'}`
+                )
+              }
+            }
+          }
+          job.status = 'done'
+          job.outputs = outputs
+          job.finishedAt = Date.now()
+          this.unknownCounts.delete(job.id)
+          continue
+        }
+
+        // 2. Queue — running vs pending.
+        if (queueData) {
+          if (queueData.queue_running.some((item) => item[1] === job.promptId)) {
+            job.status = 'running'
+            job.queuePosition = undefined
+            this.unknownCounts.delete(job.id)
+            continue
+          }
+          const idx = queueData.queue_pending.findIndex((item) => item[1] === job.promptId)
+          if (idx >= 0) {
+            job.status = 'pending'
+            job.queuePosition = idx + 1
+            this.unknownCounts.delete(job.id)
+            continue
+          }
+        }
+
+        // 3. Unknown — increment.
+        const u = (this.unknownCounts.get(job.id) ?? 0) + 1
+        this.unknownCounts.set(job.id, u)
+        if (u >= this.UNKNOWN_THRESHOLD) {
+          job.status = 'error'
+          job.error = `Lost track of job on '${ws.name}' (ComfyUI may have restarted). Click Retry.`
+          job.finishedAt = Date.now()
+          this.unknownCounts.delete(job.id)
+        }
+      } catch {
+        /* network blip — try again next cycle */
+      }
+    }
+    this.emit('jobs:update', this.getJobs())
+  }
+
   // ── Testing seams (no-op in prod) ─────────────────────────────────────────
 
   /** @internal — used only in unit tests to seed state without HTTP. */
@@ -226,6 +304,11 @@ export class WorkstationPool extends EventEmitter {
   __test_setStatus(id: string, status: Workstation['status']): void {
     const ws = this.workstations.get(id)
     if (ws) ws.status = status
+  }
+
+  /** @internal — used only in unit tests. */
+  __test_seedJob(job: Job): void {
+    this.jobs.set(job.id, job)
   }
 
   // ── Jobs ─────────────────────────────────────────────────────────────────
