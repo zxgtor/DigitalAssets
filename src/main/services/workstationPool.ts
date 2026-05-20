@@ -6,6 +6,7 @@ import type { StoredWorkstation, SchedulerMode } from '../store'
 import { getSettings, setSettings } from '../store'
 import { Semaphore } from '../utils/semaphore'
 import { extractRequiredModels } from '../utils/workflowAnalyze'
+import { discover as runDiscovery, type DiscoveryCandidate } from '../utils/discovery'
 
 /** Global gate so /object_info never runs more than once at a time across all workstations. */
 const objectInfoGate = new Semaphore(1)
@@ -223,6 +224,18 @@ export class WorkstationPool extends EventEmitter {
       } finally {
         this.emit('workstations:update', this.list())
       }
+    })
+  }
+
+  async discoverOnLan(opts: {
+    portRange: [number, number]
+    onCandidate?: (c: DiscoveryCandidate) => void
+  }): Promise<DiscoveryCandidate[]> {
+    const existing = this.list().map((w) => w.url.toLowerCase())
+    return runDiscovery({
+      portRange: opts.portRange,
+      skipUrls: existing,
+      onCandidate: opts.onCandidate
     })
   }
 
@@ -475,4 +488,11 @@ function extractPromptPreview(wf: WorkflowJSON): string {
     }
   }
   return ''
+}
+
+let _singleton: WorkstationPool | null = null
+
+export function getPool(): WorkstationPool {
+  if (!_singleton) _singleton = new WorkstationPool({ persist: true })
+  return _singleton
 }
