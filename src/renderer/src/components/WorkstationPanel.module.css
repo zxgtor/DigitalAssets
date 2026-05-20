@@ -1,0 +1,47 @@
+.wrap { display: flex; flex-direction: column; gap: 4px; }
+
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  background: none; border: none; color: var(--text); cursor: pointer;
+  padding: 6px 0; font-size: 12px; letter-spacing: 0.3px;
+  text-transform: uppercase; opacity: 0.7;
+}
+.header:hover { opacity: 1; }
+.summary { font-size: 11px; opacity: 0.7; }
+
+.list { display: flex; flex-direction: column; gap: 6px; }
+.empty { color: var(--text-muted); font-size: 12px; padding: 8px; }
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+
+.row1 { display: flex; align-items: center; gap: 8px; }
+.row2 { display: flex; }
+.url { color: var(--text-muted); font-size: 11px; }
+
+.dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--text-muted);
+}
+.dotOnline  { background: #4ade80; }
+.dotBusy    { background: #facc15; }
+.dotOffline { background: #6b7280; }
+.dotUnknown { background: transparent; border: 1px solid #6b7280; }
+
+.name { flex: 1; font-size: 13px; }
+.statusText { font-size: 11px; opacity: 0.7; }
+.refreshBtn { background: none; border: none; cursor: pointer; color: var(--text); opacity: 0.6; }
+.refreshBtn:hover { opacity: 1; }
+
+.vram { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+.vramLabel { opacity: 0.6; }
+.vramBar { flex: 1; height: 4px; background: var(--bg-elevated); border-radius: 2px; overflow: hidden; }
+.vramFill { display: block; height: 100%; background: #60a5fa; }
+.vramText { opacity: 0.7; }
+
+.models { font-size: 11px; opacity: 0.6; }
