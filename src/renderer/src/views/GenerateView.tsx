@@ -1,8 +1,11 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import styles from './GenerateView.module.css'
 import { PillButton } from '../components/PillButton'
 import { toMediaUrlAsync } from '../utils/mediaUrl'
-import type { HistoryEntry } from '../types'
+import { WorkstationPanel } from '../components/WorkstationPanel'
+import { QueuePanel } from '../components/QueuePanel'
+import { useWorkstationPool } from '../hooks/useWorkstationPool'
+import type { HistoryEntry, SchedulerMode } from '../types'
 
 interface GenerateViewProps {
   entry: HistoryEntry | null
@@ -20,8 +23,6 @@ interface WorkflowParams {
   height: number
 }
 
-type GenerateStatus = 'idle' | 'queuing' | 'pending' | 'running' | 'done' | 'error'
-
 const SIZE_PRESETS = [
   { label: '512×512', w: 512, h: 512 },
   { label: '768×768', w: 768, h: 768 },
@@ -36,6 +37,7 @@ function randomSeed(): number {
 }
 
 export function GenerateView({ entry, onBack }: GenerateViewProps): React.JSX.Element {
+  const pool = useWorkstationPool()
   const [params, setParams] = useState<WorkflowParams>({
     prompt: entry?.prompt ?? '',
     negativePrompt: 'blurry, low quality, deformed, watermark, text, nsfw',
@@ -46,82 +48,58 @@ export function GenerateView({ entry, onBack }: GenerateViewProps): React.JSX.El
     width: 1024,
     height: 1024
   })
-  const [comfyUrl, setComfyUrl] = useState('http://localhost:8188')
-  const [status, setStatus] = useState<GenerateStatus>('idle')
-  const [queuePos, setQueuePos] = useState<number | null>(null)
-  const [promptId, setPromptId] = useState<string | null>(null)
-  const [outputImages, setOutputImages] = useState<string[]>([])
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [thumbUrl, setThumbUrl] = useState<string>('')
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null)
+  const [runOn, setRunOn] = useState<string>('auto')           // 'auto' or workstation id
+  const [globalMode, setGlobalMode] = useState<SchedulerMode>('lan-pool')
+  const [wsOpen, setWsOpen] = useState(true)
+  const [qOpen, setQOpen] = useState(true)
 
-  // Load settings on mount to get comfyUrl
+  // Load persisted settings (mode + panel toggle states) once.
   useEffect(() => {
-    window.api.settings.get().then((s) => {
-      setComfyUrl((s.comfyUrl ?? 'http://localhost:8188').replace(/\/$/, ''))
-    }).catch(() => {})
+    void window.api.settings.get().then((s) => {
+      setGlobalMode(s.schedulerMode)
+      setWsOpen(s.ui.workstationsPanelOpen)
+      setQOpen(s.ui.queuePanelOpen)
+    })
   }, [])
 
-  // Sync prompt when entry changes
+  const onWsToggle = useCallback((open: boolean): void => {
+    setWsOpen(open)
+    void window.api.settings.set({ ui: { workstationsPanelOpen: open, queuePanelOpen: qOpen } })
+  }, [qOpen])
+
+  const onQToggle = useCallback((open: boolean): void => {
+    setQOpen(open)
+    void window.api.settings.set({ ui: { workstationsPanelOpen: wsOpen, queuePanelOpen: open } })
+  }, [wsOpen])
+
   useEffect(() => {
-    if (entry?.prompt) {
-      setParams((prev) => ({ ...prev, prompt: entry.prompt }))
-    }
+    if (entry?.prompt) setParams((prev) => ({ ...prev, prompt: entry.prompt }))
   }, [entry?.prompt])
 
-  // Load thumbnail
   useEffect(() => {
     if (!entry?.thumbnailPath) return
     toMediaUrlAsync(entry.thumbnailPath).then(setThumbUrl).catch(() => {})
   }, [entry?.thumbnailPath])
 
-  // Poll ComfyUI status when queued
+  // Default selected job = most recent one
   useEffect(() => {
-    if (!promptId || status === 'done' || status === 'error' || status === 'idle') return
-
-    pollRef.current = setInterval(async () => {
-      try {
-        const res = await (window.api as any).comfy.getStatus({ promptId, comfyUrl }) as {
-          status: string
-          queuePosition?: number
-          outputs?: string[]
-        }
-        if (res.status === 'done') {
-          setStatus('done')
-          setOutputImages(res.outputs ?? [])
-          if (pollRef.current) clearInterval(pollRef.current)
-        } else if (res.status === 'running') {
-          setStatus('running')
-          setQueuePos(null)
-        } else if (res.status === 'pending') {
-          setStatus('pending')
-          setQueuePos(res.queuePosition ?? null)
-        }
-      } catch {
-        // keep polling
-      }
-    }, 2500)
-
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current)
+    if (selectedJobId == null && pool.jobs.length > 0) {
+      setSelectedJobId(pool.jobs[0].id)
     }
-  }, [promptId, status, comfyUrl])
+  }, [pool.jobs, selectedJobId])
 
   const set = useCallback(<K extends keyof WorkflowParams>(key: K, val: WorkflowParams[K]) => {
     setParams((prev) => ({ ...prev, [key]: val }))
   }, [])
 
   const handleQueue = useCallback(async () => {
-    setStatus('queuing')
-    setErrorMsg(null)
-    setOutputImages([])
-    setPromptId(null)
     try {
       const workflow = await window.api.workflow.buildImage({
         prompt: params.prompt,
         negativePrompt: params.negativePrompt
       })
-      // Patch in our params
       if (workflow['4']) workflow['4'].inputs.ckpt_name = params.checkpoint
       if (workflow['3']) {
         workflow['3'].inputs.steps = params.steps
@@ -132,18 +110,24 @@ export function GenerateView({ entry, onBack }: GenerateViewProps): React.JSX.El
         workflow['5'].inputs.width = params.width
         workflow['5'].inputs.height = params.height
       }
-      const result = await (window.api as any).comfy.queue({ workflow, comfyUrl }) as { promptId: string }
-      setPromptId(result.promptId)
-      setStatus('pending')
+      const pref = runOn === 'auto' ? undefined : runOn
+      const jobId = await pool.submit(workflow, pref)
+      setSelectedJobId(jobId)
     } catch (err) {
-      setStatus('error')
-      setErrorMsg(err instanceof Error ? err.message : String(err))
+      // pool.submit doesn't throw; errors land in the job. Network errors on the IPC bridge would though.
+      // eslint-disable-next-line no-alert
+      alert(`Submit failed: ${err instanceof Error ? err.message : String(err)}`)
     }
-  }, [params, comfyUrl])
+  }, [params, runOn, pool])
 
-  const handleRandomSeed = useCallback(() => {
-    set('seed', randomSeed())
-  }, [set])
+  const handleRandomSeed = useCallback(() => set('seed', randomSeed()), [set])
+  const onRetry = useCallback(async (jobId: string) => {
+    const job = pool.jobs.find((j) => j.id === jobId)
+    if (!job) return
+    await pool.removeJob(jobId)
+    // Build a fresh workflow with current params (job.workflow is the original; user may have tweaked)
+    await handleQueue()
+  }, [pool, handleQueue])
 
   if (!entry) {
     return (
@@ -157,15 +141,18 @@ export function GenerateView({ entry, onBack }: GenerateViewProps): React.JSX.El
   }
 
   const activeSize = SIZE_PRESETS.find((p) => p.w === params.width && p.h === params.height)
+  const selectedJob = pool.jobs.find((j) => j.id === selectedJobId) ?? pool.jobs[0]
+  const autoLabel = globalMode === 'per-model' ? 'Auto (per model)' : 'Auto (LAN pool)'
+  const showAuto = globalMode !== 'manual'
+
+  // Empty state: no workstations at all → prompt to add
+  const noWorkstations = !pool.loading && pool.workstations.length === 0
 
   return (
     <div className={styles.wrap}>
       <div className={styles.inner}>
-        {/* Header */}
         <div className={styles.header}>
-          <button type="button" className={styles.backBtn} onClick={onBack}>
-            ← Gallery
-          </button>
+          <button type="button" className={styles.backBtn} onClick={onBack}>← Gallery</button>
           <div className={styles.entryInfo}>
             {thumbUrl && <img className={styles.thumb} src={thumbUrl} alt="" />}
             <div className={styles.entryMeta}>
@@ -175,82 +162,55 @@ export function GenerateView({ entry, onBack }: GenerateViewProps): React.JSX.El
           </div>
         </div>
 
+        {noWorkstations && (
+          <div className={styles.noWsBanner}>
+            <span>Add a workstation to start generating.</span>
+            <span style={{ opacity: 0.6, marginLeft: 8 }}>Open Settings → Workstations.</span>
+          </div>
+        )}
+
         <div className={styles.body}>
-          {/* Left: prompt + params */}
           <div className={styles.left}>
-            {/* Prompt */}
             <div className={styles.section}>
               <div className={styles.sectionTitle}>Prompt</div>
-              <textarea
-                className={styles.promptArea}
-                value={params.prompt}
-                onChange={(e) => set('prompt', e.target.value)}
-                rows={5}
-                spellCheck={false}
-              />
+              <textarea className={styles.promptArea} value={params.prompt}
+                onChange={(e) => set('prompt', e.target.value)} rows={5} spellCheck={false} />
             </div>
 
-            {/* Parameters */}
             <div className={styles.section}>
               <div className={styles.sectionTitle}>Parameters</div>
 
               <div className={styles.field}>
                 <label className={styles.label}>Checkpoint</label>
-                <input
-                  className={styles.input}
-                  type="text"
-                  value={params.checkpoint}
-                  onChange={(e) => set('checkpoint', e.target.value)}
-                  spellCheck={false}
-                  placeholder="sd_xl_base_1.0.safetensors"
-                />
+                <input className={styles.input} type="text" value={params.checkpoint}
+                  onChange={(e) => set('checkpoint', e.target.value)} spellCheck={false} />
               </div>
 
               <div className={styles.field}>
                 <label className={styles.label}>Negative prompt</label>
-                <textarea
-                  className={styles.input}
-                  value={params.negativePrompt}
-                  onChange={(e) => set('negativePrompt', e.target.value)}
-                  rows={2}
-                  spellCheck={false}
-                />
+                <textarea className={styles.input} value={params.negativePrompt}
+                  onChange={(e) => set('negativePrompt', e.target.value)} rows={2} spellCheck={false} />
               </div>
 
               <div className={styles.fieldRow}>
                 <div className={styles.field}>
                   <label className={styles.label}>Steps — {params.steps}</label>
-                  <input
-                    type="range" min={10} max={50} step={1}
-                    value={params.steps}
-                    onChange={(e) => set('steps', Number(e.target.value))}
-                    className={styles.slider}
-                  />
+                  <input type="range" min={10} max={50} step={1} value={params.steps}
+                    onChange={(e) => set('steps', Number(e.target.value))} className={styles.slider} />
                 </div>
                 <div className={styles.field}>
                   <label className={styles.label}>CFG — {params.cfg.toFixed(1)}</label>
-                  <input
-                    type="range" min={1} max={20} step={0.5}
-                    value={params.cfg}
-                    onChange={(e) => set('cfg', Number(e.target.value))}
-                    className={styles.slider}
-                  />
+                  <input type="range" min={1} max={20} step={0.5} value={params.cfg}
+                    onChange={(e) => set('cfg', Number(e.target.value))} className={styles.slider} />
                 </div>
               </div>
 
               <div className={styles.field}>
                 <label className={styles.label}>Seed</label>
                 <div className={styles.seedRow}>
-                  <input
-                    className={styles.input}
-                    type="number"
-                    value={params.seed}
-                    onChange={(e) => set('seed', Number(e.target.value))}
-                    style={{ flex: 1 }}
-                  />
-                  <button type="button" className={styles.diceBtn} onClick={handleRandomSeed} title="Randomize seed">
-                    🎲
-                  </button>
+                  <input className={styles.input} type="number" value={params.seed}
+                    onChange={(e) => set('seed', Number(e.target.value))} style={{ flex: 1 }} />
+                  <button type="button" className={styles.diceBtn} onClick={handleRandomSeed}>🎲</button>
                 </div>
               </div>
 
@@ -258,12 +218,9 @@ export function GenerateView({ entry, onBack }: GenerateViewProps): React.JSX.El
                 <label className={styles.label}>Output size</label>
                 <div className={styles.sizePresets}>
                   {SIZE_PRESETS.map((p) => (
-                    <button
-                      key={p.label}
-                      type="button"
+                    <button key={p.label} type="button"
                       className={[styles.sizeBtn, activeSize?.label === p.label ? styles.sizeBtnActive : ''].join(' ')}
-                      onClick={() => { set('width', p.w); set('height', p.h) }}
-                    >
+                      onClick={() => { set('width', p.w); set('height', p.h) }}>
                       {p.label}
                     </button>
                   ))}
@@ -271,85 +228,58 @@ export function GenerateView({ entry, onBack }: GenerateViewProps): React.JSX.El
               </div>
             </div>
 
-            {/* Actions */}
-            <div className={styles.actions}>
-              <PillButton
-                variant="primary"
-                onClick={handleQueue}
-                disabled={status === 'queuing' || status === 'pending' || status === 'running'}
+            <div className={styles.runOnRow}>
+              <label className={styles.label}>Run on</label>
+              <select
+                className={styles.input}
+                value={runOn}
+                onChange={(e) => setRunOn(e.target.value)}
               >
-                {status === 'queuing' ? 'Sending…' : 'Send to ComfyUI ▶'}
+                {showAuto && <option value="auto">{autoLabel}</option>}
+                {pool.workstations.map((w) => (
+                  <option key={w.id} value={w.id} disabled={!w.enabled}>
+                    {w.name} {w.status === 'offline' ? '(offline)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className={styles.actions}>
+              <PillButton variant="primary" onClick={handleQueue} disabled={noWorkstations}>
+                Send to ComfyUI ▶
               </PillButton>
             </div>
           </div>
 
-          {/* Right: status + output */}
           <div className={styles.right}>
-            <div className={styles.section}>
-              <div className={styles.sectionTitle}>Status</div>
-              {status === 'idle' && (
-                <div className={styles.statusRow}>
-                  <span className={[styles.dot, styles.dotIdle].join(' ')} />
-                  <span className={styles.statusText}>Ready to generate</span>
-                </div>
-              )}
-              {status === 'queuing' && (
-                <div className={styles.statusRow}>
-                  <span className={[styles.dot, styles.dotPending].join(' ')} />
-                  <span className={styles.statusText}>Sending to ComfyUI…</span>
-                </div>
-              )}
-              {status === 'pending' && (
-                <div className={styles.statusRow}>
-                  <span className={[styles.dot, styles.dotPending].join(' ')} />
-                  <span className={styles.statusText}>
-                    Queued{queuePos != null ? ` — position ${queuePos}` : ''}
-                  </span>
-                </div>
-              )}
-              {status === 'running' && (
-                <div className={styles.statusRow}>
-                  <span className={[styles.dot, styles.dotRunning].join(' ')} />
-                  <span className={styles.statusText}>Generating…</span>
-                </div>
-              )}
-              {status === 'done' && (
-                <div className={styles.statusRow}>
-                  <span className={[styles.dot, styles.dotDone].join(' ')} />
-                  <span className={styles.statusText}>Done ✓</span>
-                </div>
-              )}
-              {status === 'error' && (
-                <div className={styles.statusCol}>
-                  <div className={styles.statusRow}>
-                    <span className={[styles.dot, styles.dotError].join(' ')} />
-                    <span className={styles.statusText}>Error</span>
-                  </div>
-                  {errorMsg && <span className={styles.errorMsg}>{errorMsg}</span>}
-                </div>
-              )}
-            </div>
-
-            {/* Output images */}
-            {outputImages.length > 0 && (
+            <WorkstationPanel
+              workstations={pool.workstations}
+              open={wsOpen}
+              onToggle={onWsToggle}
+              onRefresh={(id) => void pool.refreshModels(id)}
+            />
+            <QueuePanel
+              jobs={pool.jobs}
+              workstations={pool.workstations}
+              selectedJobId={selectedJobId}
+              open={qOpen}
+              onToggle={onQToggle}
+              onSelect={setSelectedJobId}
+              onCancel={(id) => void pool.cancel(id)}
+              onRetry={(id) => void onRetry(id)}
+              onRemove={(id) => void pool.removeJob(id)}
+              onClearDone={() => void pool.clearDoneJobs()}
+            />
+            {selectedJob && selectedJob.outputs && selectedJob.outputs.length > 0 && (
               <div className={styles.section}>
-                <div className={styles.sectionTitle}>Output</div>
+                <div className={styles.sectionTitle}>Outputs</div>
                 <div className={styles.outputGrid}>
-                  {outputImages.map((url, i) => (
+                  {selectedJob.outputs.map((url, i) => (
                     <img key={i} src={url} className={styles.outputImg} alt={`output ${i + 1}`} />
                   ))}
                 </div>
               </div>
             )}
-
-            {/* ComfyUI URL */}
-            <div className={styles.section} style={{ marginTop: 'auto' }}>
-              <div className={styles.sectionTitle}>ComfyUI Server</div>
-              <div className={styles.hint}>{comfyUrl}</div>
-              <div className={styles.hint} style={{ marginTop: 4 }}>
-                Change in Settings → ComfyUI
-              </div>
-            </div>
           </div>
         </div>
       </div>

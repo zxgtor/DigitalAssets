@@ -388,3 +388,20 @@
     position: static;
   }
 }
+
+/* ── No-workstation banner ───────────────────────────────── */
+.noWsBanner {
+  margin: 8px 0;
+  padding: 8px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+/* ── Run-on row ──────────────────────────────────────────── */
+.runOnRow {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 8px;
+}
+.runOnRow select { flex: 1; }

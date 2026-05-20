@@ -1,12 +1,17 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
+export type SchedulerModeValue = 'lan-pool' | 'per-model' | 'manual'
+
 export interface Settings {
   ollamaBaseUrl: string
   ollamaModel: string
   maxKeyframes: number
   outputFolder: string
   comfyUrl: string
+  /** v2 fields — present once migrated */
+  schedulerMode: SchedulerModeValue
+  ui: { workstationsPanelOpen: boolean; queuePanelOpen: boolean }
 }
 
 export interface ImageAnalysisResult {
