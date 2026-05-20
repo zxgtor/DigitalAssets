@@ -4,6 +4,10 @@ import axios from 'axios'
 import type { WorkflowJSON } from './workflow'
 import type { StoredWorkstation } from '../store'
 import { getSettings, setSettings } from '../store'
+import { Semaphore } from '../utils/semaphore'
+
+/** Global gate so /object_info never runs more than once at a time across all workstations. */
+const objectInfoGate = new Semaphore(1)
 
 // ─── Public types ───────────────────────────────────────────────────────────
 
@@ -150,18 +154,24 @@ export class WorkstationPool extends EventEmitter {
       const queue = await axios.get(`${ws.url}/queue`, { timeout: 3_000 })
       this.failureCounts.set(ws.id, 0)
 
+      const firstContact = ws.lastSeenAt === undefined
+
       const dev = (stats.data?.devices?.[0] ?? {}) as Record<string, unknown>
       ws.gpu = {
         name: (dev.name as string) ?? 'unknown GPU',
         vramTotal: (dev.vram_total as number) ?? 0,
         vramFree: (dev.vram_free as number) ?? 0
       }
-
       const running = Array.isArray(queue.data?.queue_running) ? queue.data.queue_running.length : 0
       const pending = Array.isArray(queue.data?.queue_pending) ? queue.data.queue_pending.length : 0
       ws.queueDepth = running + pending
       ws.status = running > 0 ? 'busy' : 'online'
       ws.lastSeenAt = Date.now()
+
+      if (firstContact && ws.models.checkpoints.length === 0) {
+        // fire-and-forget; refresh emits its own update event
+        void this.refreshModels(ws.id)
+      }
     } catch {
       const failures = (this.failureCounts.get(ws.id) ?? 0) + 1
       this.failureCounts.set(ws.id, failures)
@@ -169,9 +179,31 @@ export class WorkstationPool extends EventEmitter {
         ws.status = 'offline'
         ws.queueDepth = 0
       }
-      // else leave status as-is (unknown stays unknown; online stays online)
     } finally {
       this.emit('workstations:update', this.list())
     }
+  }
+
+  async refreshModels(id: string): Promise<void> {
+    const ws = this.workstations.get(id)
+    if (!ws) return
+    await objectInfoGate.run(async () => {
+      try {
+        const res = await axios.get(`${ws.url}/object_info`, {
+          timeout: 30_000,
+          maxContentLength: 50_000_000
+        })
+        const info = res.data as Record<string, any>
+        ws.models = {
+          checkpoints: info?.CheckpointLoaderSimple?.input?.required?.ckpt_name?.[0] ?? [],
+          loras:       info?.LoraLoader?.input?.required?.lora_name?.[0] ?? [],
+          vae:         info?.VAELoader?.input?.required?.vae_name?.[0] ?? []
+        }
+      } catch {
+        // leave as-is on failure; UI shows last-known list
+      } finally {
+        this.emit('workstations:update', this.list())
+      }
+    })
   }
 }
