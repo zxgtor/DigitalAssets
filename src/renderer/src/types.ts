@@ -69,3 +69,12 @@ export interface SelectedFile {
   thumbnailUrl?: string
   youtubeUrl?: string
 }
+
+export type {
+  Workstation,
+  WorkstationStatus,
+  Job,
+  JobStatus,
+  SchedulerMode,
+  DiscoveryCandidate
+} from '@preload/index'
