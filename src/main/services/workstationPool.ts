@@ -5,9 +5,14 @@ import type { WorkflowJSON } from './workflow'
 import type { StoredWorkstation, SchedulerMode } from '../store'
 import { getSettings, setSettings } from '../store'
 import { Semaphore } from '../utils/semaphore'
+import { extractRequiredModels } from '../utils/workflowAnalyze'
 
 /** Global gate so /object_info never runs more than once at a time across all workstations. */
 const objectInfoGate = new Semaphore(1)
+
+/** Global gate so we never POST /prompt more than 4x in parallel. */
+const submitGate = new Semaphore(4)
+const MAX_SUBMIT_RETRIES = 2
 
 // ─── Public types ───────────────────────────────────────────────────────────
 
@@ -60,6 +65,8 @@ export class WorkstationPool extends EventEmitter {
   private healthInterval: NodeJS.Timeout | null = null
   private readonly POLL_INTERVAL_MS = 5_000
   private readonly OFFLINE_AFTER_FAILURES = 3
+  private jobs = new Map<string, Job>()
+  private currentMode: SchedulerMode = 'lan-pool'
 
   constructor(opts: WorkstationPoolOptions = {}) {
     super()
@@ -221,6 +228,113 @@ export class WorkstationPool extends EventEmitter {
     if (ws) ws.status = status
   }
 
+  // ── Jobs ─────────────────────────────────────────────────────────────────
+
+  setMode(mode: SchedulerMode): void {
+    this.currentMode = mode
+  }
+
+  getJobs(): Job[] {
+    return Array.from(this.jobs.values()).sort((a, b) => b.createdAt - a.createdAt)
+  }
+
+  clearDoneJobs(): void {
+    for (const [id, j] of this.jobs) if (j.status === 'done') this.jobs.delete(id)
+    this.emit('jobs:update', this.getJobs())
+  }
+
+  removeJob(id: string): void {
+    this.jobs.delete(id)
+    this.emit('jobs:update', this.getJobs())
+  }
+
+  async submit(args: {
+    workflow: WorkflowJSON
+    hints: { preferWorkstation?: string }
+    mode?: SchedulerMode
+  }): Promise<string> {
+    const mode = args.mode ?? this.currentMode
+    const requireModel = extractRequiredModels(args.workflow)
+    const job: Job = {
+      id: randomUUID(),
+      workstationId: null,
+      promptId: null,
+      workflow: args.workflow,
+      hints: { ...args.hints, requireModel },
+      status: 'queued',
+      promptPreview: extractPromptPreview(args.workflow),
+      createdAt: Date.now()
+    }
+    this.jobs.set(job.id, job)
+    this.emit('jobs:update', this.getJobs())
+
+    // Try up to (MAX_SUBMIT_RETRIES + 1) different workstations.
+    const tried = new Set<string>()
+    for (let attempt = 0; attempt <= MAX_SUBMIT_RETRIES; attempt++) {
+      const ws = this.pick({ mode, preferWorkstation: args.hints.preferWorkstation, requireModel })
+      if (!ws) {
+        if (tried.size > 0) {
+          this.failJob(job, `All eligible workstations rejected the job`)
+        } else {
+          this.failJob(job, this.noPickReason(mode, args.hints.preferWorkstation, requireModel))
+        }
+        return job.id
+      }
+      if (tried.has(ws.id)) {
+        this.failJob(job, `All eligible workstations rejected the job`)
+        return job.id
+      }
+      tried.add(ws.id)
+      job.workstationId = ws.id
+      job.status = 'submitting'
+      this.emit('jobs:update', this.getJobs())
+
+      try {
+        await submitGate.run(async () => {
+          const res = await axios.post(
+            `${ws.url}/prompt`,
+            { prompt: args.workflow, client_id: `digitalassets-${Date.now()}` },
+            { timeout: 10_000 }
+          )
+          const promptId = res.data?.prompt_id as string | undefined
+          if (!promptId) throw new Error('ComfyUI did not return a prompt_id')
+          job.promptId = promptId
+          job.status = 'pending'
+          job.startedAt = Date.now()
+        })
+        this.emit('jobs:update', this.getJobs())
+        return job.id
+      } catch (err) {
+        // Mark this workstation offline immediately so the next pick skips it.
+        ws.status = 'offline'
+        this.emit('workstations:update', this.list())
+        // continue retry loop
+        if (attempt === MAX_SUBMIT_RETRIES) {
+          this.failJob(job, `Workstation '${ws.name}' rejected the job: ${(err as Error).message}`)
+          return job.id
+        }
+      }
+    }
+    return job.id
+  }
+
+  private failJob(job: Job, reason: string): void {
+    job.status = 'error'
+    job.error = reason
+    job.finishedAt = Date.now()
+    this.emit('jobs:update', this.getJobs())
+  }
+
+  private noPickReason(mode: SchedulerMode, pref: string | undefined, req: { checkpoints: string[]; loras: string[]; vae: string[] }): string {
+    if (mode === 'manual' && !pref) return 'Pick a workstation from "Run on" before sending.'
+    if (pref) return `Workstation '${pref}' not found or disabled.`
+    const anyOnline = this.list().some((w) => w.enabled && (w.status === 'online' || w.status === 'busy'))
+    if (!anyOnline) return 'No workstations are online. Check your network, or click "Discover on LAN" in Settings.'
+    const missing = req.checkpoints.find((m) => !this.list().some((w) => w.models.checkpoints.includes(m)))
+    if (missing) return `No workstation has '${missing}'. Refresh model lists with ↻, or pick a different checkpoint.`
+    return 'No workstation matched the job constraints.'
+  }
+
   // ── Scheduler ─────────────────────────────────────────────────────────────
 
   pick(opts: {
@@ -261,4 +375,16 @@ export class WorkstationPool extends EventEmitter {
     })
     return candidates[0]
   }
+}
+
+function extractPromptPreview(wf: WorkflowJSON): string {
+  for (const node of Object.values(wf)) {
+    if (node.class_type === 'CLIPTextEncode') {
+      const t = (node.inputs as Record<string, unknown>).text
+      if (typeof t === 'string' && t.length > 0) {
+        return t.length > 50 ? t.slice(0, 50) + '…' : t
+      }
+    }
+  }
+  return ''
 }
