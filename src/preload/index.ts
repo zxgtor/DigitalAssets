@@ -73,6 +73,48 @@ export interface ComfyOpenArgs {
   fileName: string
 }
 
+export interface WorkstationPersisted {
+  id: string
+  name: string
+  url: string
+  enabled: boolean
+}
+
+export type WorkstationStatus = 'online' | 'busy' | 'offline' | 'unknown'
+
+export interface Workstation extends WorkstationPersisted {
+  status: WorkstationStatus
+  models: { checkpoints: string[]; loras: string[]; vae: string[] }
+  queueDepth: number
+  gpu?: { name: string; vramTotal: number; vramFree: number }
+  lastSeenAt?: number
+}
+
+export type JobStatus = 'queued' | 'submitting' | 'pending' | 'running' | 'done' | 'error'
+
+export interface Job {
+  id: string
+  workstationId: string | null
+  promptId: string | null
+  hints: { preferWorkstation?: string }
+  status: JobStatus
+  queuePosition?: number
+  outputs?: string[]
+  error?: string
+  promptPreview?: string
+  createdAt: number
+  startedAt?: number
+  finishedAt?: number
+}
+
+export type SchedulerMode = 'lan-pool' | 'per-model' | 'manual'
+
+export interface DiscoveryCandidate {
+  url: string
+  gpu: string
+  vramTotal: number
+}
+
 const api = {
   settings: {
     get: (): Promise<Settings> => ipcRenderer.invoke('settings:get'),
@@ -144,6 +186,40 @@ const api = {
       queuePosition?: number
       outputs?: string[]
     }> => ipcRenderer.invoke('comfy:getStatus', args)
+  },
+  workstations: {
+    list: (): Promise<Workstation[]> => ipcRenderer.invoke('workstations:list'),
+    add: (input: { name: string; url: string }): Promise<Workstation> =>
+      ipcRenderer.invoke('workstations:add', input),
+    remove: (id: string): Promise<void> => ipcRenderer.invoke('workstations:remove', id),
+    edit: (id: string, patch: Partial<{ name: string; url: string; enabled: boolean }>): Promise<void> =>
+      ipcRenderer.invoke('workstations:edit', { id, patch }),
+    refreshModels: (id: string): Promise<void> => ipcRenderer.invoke('workstations:refreshModels', id),
+    setMode: (mode: SchedulerMode): Promise<void> => ipcRenderer.invoke('workstations:setMode', mode),
+    submit: (args: { workflow: WorkflowJSON; preferWorkstation?: string }): Promise<string> =>
+      ipcRenderer.invoke('workstations:submit', args),
+    getJobs: (): Promise<Job[]> => ipcRenderer.invoke('workstations:getJobs'),
+    clearDoneJobs: (): Promise<void> => ipcRenderer.invoke('workstations:clearDoneJobs'),
+    removeJob: (id: string): Promise<void> => ipcRenderer.invoke('workstations:removeJob', id),
+    cancel: (id: string): Promise<void> => ipcRenderer.invoke('workstations:cancel', id),
+    discover: (): Promise<DiscoveryCandidate[]> => ipcRenderer.invoke('workstations:discover'),
+    testConnection: (url: string): Promise<{ ok: boolean; gpu?: string; error?: string }> =>
+      ipcRenderer.invoke('workstations:testConnection', url),
+    onUpdate: (cb: (list: Workstation[]) => void): (() => void) => {
+      const handler = (_e: unknown, list: Workstation[]): void => cb(list)
+      ipcRenderer.on('workstations:update', handler)
+      return () => ipcRenderer.removeListener('workstations:update', handler)
+    },
+    onJobsUpdate: (cb: (list: Job[]) => void): (() => void) => {
+      const handler = (_e: unknown, list: Job[]): void => cb(list)
+      ipcRenderer.on('jobs:update', handler)
+      return () => ipcRenderer.removeListener('jobs:update', handler)
+    },
+    onDiscoverCandidate: (cb: (c: DiscoveryCandidate) => void): (() => void) => {
+      const handler = (_e: unknown, c: DiscoveryCandidate): void => cb(c)
+      ipcRenderer.on('workstations:discover:candidate', handler)
+      return () => ipcRenderer.removeListener('workstations:discover:candidate', handler)
+    }
   },
   app: {
     onNavigate: (callback: (payload: { page: string; file?: string }) => void): (() => void) => {
