@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import styles from './SettingsView.module.css'
 import { PillButton } from '../components/PillButton'
+import { useWorkstationPool } from '../hooks/useWorkstationPool'
+import { DiscoverDialog } from '../components/DiscoverDialog'
+import type { SchedulerMode } from '../types'
 
 interface Settings {
   ollamaBaseUrl: string
@@ -24,10 +27,37 @@ export function SettingsView(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Workstation pool state
+  const pool = useWorkstationPool()
+  const [mode, setMode] = useState<SchedulerMode>('lan-pool')
+  const [showDiscover, setShowDiscover] = useState(false)
+  const [showAddDialog, setShowAddDialog] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [newUrl, setNewUrl] = useState('')
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState<string | null>(null)
+
   // Load current settings on mount
   useEffect(() => {
     window.api.settings.get().then((s) => setForm(s)).catch(console.error)
   }, [])
+
+  useEffect(() => {
+    void window.api.settings.get().then((s) => setMode(s.schedulerMode))
+  }, [])
+
+  const onTestNew = async (): Promise<void> => {
+    setTesting(true); setTestResult(null)
+    const r = await pool.testConnection(newUrl)
+    setTesting(false)
+    setTestResult(r.ok ? `✓ ${r.gpu}` : `✗ ${r.error}`)
+  }
+
+  const onAddNew = async (): Promise<void> => {
+    if (!newName.trim() || !newUrl.trim()) return
+    await pool.add({ name: newName.trim(), url: newUrl.trim() })
+    setNewName(''); setNewUrl(''); setTestResult(null); setShowAddDialog(false)
+  }
 
   const set = useCallback(<K extends keyof Settings>(key: K, value: Settings[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -142,9 +172,94 @@ export function SettingsView(): React.JSX.Element {
 
         <div className={styles.divider} />
 
-        {/* ComfyUI section */}
-        <div className={styles.section}>
-          <div className={styles.sectionTitle}>ComfyUI</div>
+        {/* Workstations section */}
+        <section className={styles.section}>
+          <div className={styles.sectionTitle}>Workstations</div>
+
+          <div className={styles.field}>
+            <div className={styles.label}>Scheduler mode</div>
+            {(['lan-pool', 'per-model', 'manual'] as const).map((m) => (
+              <label key={m} className={styles.radioRow}>
+                <input
+                  type="radio"
+                  checked={mode === m}
+                  onChange={() => { setMode(m); void pool.setMode(m) }}
+                />
+                <span>
+                  {m === 'lan-pool' && 'LAN pool — route to least-busy idle'}
+                  {m === 'per-model' && 'Per-model — route by required checkpoint'}
+                  {m === 'manual' && 'Manual — pick per job'}
+                </span>
+              </label>
+            ))}
+          </div>
+
+          <div className={styles.workstationList}>
+            {pool.workstations.length === 0 && (
+              <div className={styles.empty}>No workstations yet. Add manually or discover.</div>
+            )}
+            {pool.workstations.map((w) => (
+              <div key={w.id} className={styles.wsRow}>
+                <input
+                  type="checkbox"
+                  checked={w.enabled}
+                  onChange={(e) => void pool.edit(w.id, { enabled: e.target.checked })}
+                />
+                <div className={styles.wsInfo}>
+                  <div className={styles.wsName}>{w.name}</div>
+                  <div className={styles.wsUrl}>{w.url}</div>
+                  <div className={styles.wsMeta}>
+                    {w.status} · {w.gpu?.name ?? '—'} · {w.models.checkpoints.length} ckpts · {w.models.loras.length} LoRAs
+                  </div>
+                </div>
+                <button onClick={() => void pool.refreshModels(w.id)} title="Refresh models">↻</button>
+                <button onClick={() => {
+                  if (confirm(`Remove '${w.name}'?`)) void pool.remove(w.id).catch((e) => alert((e as Error).message))
+                }}>✕</button>
+              </div>
+            ))}
+          </div>
+
+          <div className={styles.wsActions}>
+            <button onClick={() => setShowAddDialog(true)}>+ Add workstation</button>
+            <button onClick={() => setShowDiscover(true)}>⚲ Discover on LAN…</button>
+          </div>
+
+          {showAddDialog && (
+            <div className={styles.inlineDialog}>
+              <input placeholder="Name (e.g. PC-1)" value={newName} onChange={(e) => setNewName(e.target.value)} />
+              <input placeholder="http://host:8188" value={newUrl} onChange={(e) => setNewUrl(e.target.value)} />
+              <div className={styles.inlineActions}>
+                <button onClick={onTestNew} disabled={testing || !newUrl.trim()}>
+                  {testing ? 'Testing…' : 'Test'}
+                </button>
+                <button onClick={onAddNew} disabled={!newName.trim() || !newUrl.trim()}>Save</button>
+                <button onClick={() => { setShowAddDialog(false); setTestResult(null) }}>Cancel</button>
+              </div>
+              {testResult && <div className={styles.testResult}>{testResult}</div>}
+            </div>
+          )}
+        </section>
+
+        <DiscoverDialog
+          open={showDiscover}
+          onClose={() => setShowDiscover(false)}
+          onDiscover={pool.discover}
+          onAdd={async (cands) => {
+            for (const c of cands) {
+              await pool.add({ name: `Workstation @ ${c.url.replace(/^https?:\/\//, '')}`, url: c.url })
+            }
+          }}
+        />
+
+        <div className={styles.divider} />
+
+        {/* ComfyUI section (legacy) */}
+        <section className={styles.section}>
+          <div className={styles.sectionTitle}>ComfyUI URL (legacy)</div>
+          <div className={styles.legacyHint}>
+            Migrated to Workstation #1. Edit there instead. This field will be removed in Phase 2.
+          </div>
 
           <div className={styles.field}>
             <label className={styles.label} htmlFor="comfyUrl">
@@ -163,7 +278,7 @@ export function SettingsView(): React.JSX.Element {
               URL of your ComfyUI instance. Used to queue and monitor generation.
             </span>
           </div>
-        </div>
+        </section>
 
         <div className={styles.divider} />
 
