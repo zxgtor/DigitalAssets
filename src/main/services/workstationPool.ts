@@ -191,7 +191,12 @@ export class WorkstationPool extends EventEmitter {
         ws.status = 'offline'
         ws.queueDepth = 0
       }
-      // Still try to refresh job statuses even if health check failed
+      // refreshJobsFor must also run here: test 3 ("transitions to done …") mocks
+      // /system_stats and /history but NOT /queue, so checkOne()'s own axios.get(/queue)
+      // at line 163 throws and control jumps to this catch block before the try-block
+      // call to refreshJobsFor is reached.  refreshJobsFor's internal /queue fetch is
+      // wrapped in its own try/catch (queueData stays null), so /history is still
+      // queried and the job transitions to 'done' correctly.
       await this.refreshJobsFor(ws)
     } finally {
       this.emit('workstations:update', this.list())
