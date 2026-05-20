@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto'
 import { EventEmitter } from 'events'
 import axios from 'axios'
 import type { WorkflowJSON } from './workflow'
-import type { StoredWorkstation } from '../store'
+import type { StoredWorkstation, SchedulerMode } from '../store'
 import { getSettings, setSettings } from '../store'
 import { Semaphore } from '../utils/semaphore'
 
@@ -205,5 +205,60 @@ export class WorkstationPool extends EventEmitter {
         this.emit('workstations:update', this.list())
       }
     })
+  }
+
+  // ── Testing seams (no-op in prod) ─────────────────────────────────────────
+
+  /** @internal — used only in unit tests to seed state without HTTP. */
+  __test_setWorkstations(list: Workstation[]): void {
+    this.workstations.clear()
+    for (const w of list) this.workstations.set(w.id, w)
+  }
+
+  /** @internal */
+  __test_setStatus(id: string, status: Workstation['status']): void {
+    const ws = this.workstations.get(id)
+    if (ws) ws.status = status
+  }
+
+  // ── Scheduler ─────────────────────────────────────────────────────────────
+
+  pick(opts: {
+    mode: SchedulerMode
+    preferWorkstation?: string
+    requireModel: { checkpoints: string[]; loras: string[]; vae: string[] }
+  }): Workstation | null {
+    // 1. Hard pin always wins.
+    if (opts.preferWorkstation) {
+      const pinned = this.workstations.get(opts.preferWorkstation)
+      if (pinned && pinned.enabled) return pinned
+      return null
+    }
+
+    // 2. Manual mode requires a pin.
+    if (opts.mode === 'manual') return null
+
+    // 3. Filter to candidates.
+    let candidates = this.list().filter((w) => w.enabled && (w.status === 'online' || w.status === 'busy'))
+
+    if (opts.mode === 'per-model') {
+      const need = opts.requireModel
+      const hasAll = (w: Workstation): boolean =>
+        need.checkpoints.every((m) => w.models.checkpoints.includes(m)) &&
+        need.loras.every((m)       => w.models.loras.includes(m)) &&
+        need.vae.every((m)         => w.models.vae.includes(m))
+      // Empty requireModel = no constraint = lan-pool behavior.
+      const anyConstraint = need.checkpoints.length + need.loras.length + need.vae.length > 0
+      if (anyConstraint) candidates = candidates.filter(hasAll)
+    }
+
+    if (candidates.length === 0) return null
+
+    // 4. Sort by queueDepth asc, tie-break by random.
+    candidates.sort((a, b) => {
+      if (a.queueDepth !== b.queueDepth) return a.queueDepth - b.queueDepth
+      return Math.random() - 0.5
+    })
+    return candidates[0]
   }
 }
