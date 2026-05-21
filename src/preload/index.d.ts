@@ -106,8 +106,15 @@ export interface DiscoveryCandidate {
   vramTotal: number
 }
 
+export interface StoredProject {
+  id: string
+  name: string
+  createdAt: number
+}
+
 export interface HistoryEntry {
   id: string
+  projectId: string
   kind: 'image' | 'video'
   filePath: string
   fileName: string
@@ -146,9 +153,17 @@ export interface Api {
   }
   history: {
     list: () => Promise<HistoryEntry[]>
-    add: (entry: Omit<HistoryEntry, 'id'> & { id?: string }) => Promise<HistoryEntry>
+    add: (entry: Omit<HistoryEntry, 'id' | 'projectId'> & { id?: string; projectId?: string }) => Promise<HistoryEntry>
     remove: (id: string) => Promise<void>
     clear: () => Promise<void>
+    onUpdate: (cb: (list: HistoryEntry[]) => void) => () => void
+  }
+  projects: {
+    list: () => Promise<StoredProject[]>
+    create: (name: string) => Promise<StoredProject>
+    rename: (id: string, name: string) => Promise<StoredProject>
+    delete: (id: string) => Promise<void>
+    onUpdate: (cb: (list: StoredProject[]) => void) => () => void
   }
   workflow: {
     buildImage: (args: { prompt: string; negativePrompt?: string }) => Promise<WorkflowJSON>

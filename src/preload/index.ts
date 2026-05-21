@@ -55,8 +55,15 @@ export type WorkflowSaveResult =
   | { saved: true; path: string }
   | { saved: false; canceled: true }
 
+export interface StoredProject {
+  id: string
+  name: string
+  createdAt: number
+}
+
 export interface HistoryEntry {
   id: string
+  projectId: string
   kind: 'image' | 'video'
   filePath: string
   fileName: string
@@ -165,10 +172,30 @@ const api = {
   },
   history: {
     list: (): Promise<HistoryEntry[]> => ipcRenderer.invoke('history:list'),
-    add: (entry: Omit<HistoryEntry, 'id'> & { id?: string }): Promise<HistoryEntry> =>
+    add: (entry: Omit<HistoryEntry, 'id' | 'projectId'> & { id?: string; projectId?: string }): Promise<HistoryEntry> =>
       ipcRenderer.invoke('history:add', entry),
     remove: (id: string): Promise<void> => ipcRenderer.invoke('history:delete', id),
-    clear: (): Promise<void> => ipcRenderer.invoke('history:clear')
+    clear: (): Promise<void> => ipcRenderer.invoke('history:clear'),
+    onUpdate: (cb: (list: HistoryEntry[]) => void): (() => void) => {
+      const handler = (_e: Electron.IpcRendererEvent, list: HistoryEntry[]): void => cb(list)
+      ipcRenderer.on('history:update', handler)
+      return () => ipcRenderer.removeListener('history:update', handler)
+    }
+  },
+  projects: {
+    list: (): Promise<StoredProject[]> =>
+      ipcRenderer.invoke('projects:list'),
+    create: (name: string): Promise<StoredProject> =>
+      ipcRenderer.invoke('projects:create', { name }),
+    rename: (id: string, name: string): Promise<StoredProject> =>
+      ipcRenderer.invoke('projects:rename', { id, name }),
+    delete: (id: string): Promise<void> =>
+      ipcRenderer.invoke('projects:delete', { id }),
+    onUpdate: (cb: (list: StoredProject[]) => void): (() => void) => {
+      const handler = (_e: Electron.IpcRendererEvent, list: StoredProject[]): void => cb(list)
+      ipcRenderer.on('projects:update', handler)
+      return () => ipcRenderer.removeListener('projects:update', handler)
+    }
   },
   workflow: {
     buildImage: (args: { prompt: string; negativePrompt?: string }): Promise<WorkflowJSON> =>
