@@ -28,7 +28,7 @@ ComfyUI queue + status IPC, top-nav. Foundation for everything below.
 |---|---|---|---|---|
 | 0 | Foundation (Gallery + Generate + ComfyUI IPC) | ✅ Shipped | — | `487012b` |
 | 1 | Workstation Pool & Scheduler | ✅ Shipped | 0 | Architectural keystone. Three scheduling modes: LAN pool, per-model, manual. Commit `25a6b44`. |
-| 2 | Projects | ⬜ Planned | 1 | Organize Gallery entries into projects. |
+| 2 | Projects | ✅ Shipped | 1 | Organize Gallery entries into projects. Commit `4496b78`. |
 | 3 | Characters library | ⬜ Planned | 1 | Reusable subjects + reference images. |
 | 4 | Conversational generator + storyboard | ⬜ Planned | 1, 2 | Ollama chat → script → shot list → scheduler. |
 | 5 | 360° Character consistency | ⬜ Planned | 3 | IPAdapter / InstantID workflows; multi-angle batch. |
