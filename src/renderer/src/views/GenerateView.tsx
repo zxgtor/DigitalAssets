@@ -69,11 +69,18 @@ export function GenerateView({ entry, onBack }: GenerateViewProps): React.JSX.El
     })
   }, [])
 
+  const saveToInitialized = useRef(false)
+
   // Initialize saveTo from settings.lastProjectId (or first project if null).
+  // Guard with a ref so this fires exactly once, preventing a projects:update
+  // event (rename/create/delete) from clobbering the user's mid-session choice.
   useEffect(() => {
+    if (saveToInitialized.current) return
+    if (projects.length === 0) return // wait for projects to load
+    saveToInitialized.current = true
     void window.api.settings.get().then((s) => {
       if (s.lastProjectId) setSaveTo(s.lastProjectId)
-      else if (projects.length > 0) setSaveTo(projects[0].id)
+      else setSaveTo(projects[0].id)
     })
   }, [projects])
 
