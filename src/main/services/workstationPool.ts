@@ -1,12 +1,17 @@
 import { randomUUID } from 'crypto'
+import { existsSync, readFileSync } from 'fs'
+import { basename } from 'path'
 import { EventEmitter } from 'events'
 import axios from 'axios'
+import FormData from 'form-data'
 import type { WorkflowJSON } from './workflow'
+import { buildImageWorkflow, type BuildImageWorkflowOptions } from './workflow'
 import type { StoredWorkstation, SchedulerMode } from '../store'
 import { getSettings, setSettings } from '../store'
 import { Semaphore } from '../utils/semaphore'
 import { extractRequiredModels } from '../utils/workflowAnalyze'
 import { discover as runDiscovery, type DiscoveryCandidate } from '../utils/discovery'
+import type { StoredCharacter } from '../charactersStore'
 
 /** Global gate so /object_info never runs more than once at a time across all workstations. */
 const objectInfoGate = new Semaphore(1)
@@ -16,6 +21,17 @@ const submitGate = new Semaphore(4)
 const MAX_SUBMIT_RETRIES = 2
 
 // ─── Public types ───────────────────────────────────────────────────────────
+
+export interface SubmitArgs {
+  workflow: WorkflowJSON
+  hints: {
+    requireModel?: { checkpoints: string[]; loras: string[]; vae: string[] }
+    preferWorkstation?: string
+    character?: StoredCharacter
+  }
+  buildOptions?: BuildImageWorkflowOptions
+  mode?: SchedulerMode
+}
 
 export interface Workstation extends StoredWorkstation {
   status: 'online' | 'busy' | 'offline' | 'unknown'
@@ -47,6 +63,26 @@ export interface Job {
   createdAt: number
   startedAt?: number
   finishedAt?: number
+}
+
+// ─── Upload helper ──────────────────────────────────────────────────────────
+
+/**
+ * Upload one local image file to ComfyUI's /upload/image endpoint.
+ * Returns the filename ComfyUI assigned (under its input/ folder).
+ */
+async function uploadImageToComfy(wsUrl: string, localPath: string): Promise<string> {
+  if (!existsSync(localPath)) throw new Error(`Reference image missing: ${localPath}`)
+  const form = new FormData()
+  form.append('image', readFileSync(localPath), { filename: basename(localPath) })
+  const res = await axios.post(`${wsUrl}/upload/image`, form, {
+    headers: form.getHeaders(),
+    timeout: 30_000,
+    maxBodyLength: 50_000_000
+  })
+  const data = res.data as { name?: string }
+  if (!data?.name) throw new Error('ComfyUI did not return a filename for the uploaded image')
+  return data.name
 }
 
 // ─── Pool ───────────────────────────────────────────────────────────────────
@@ -349,11 +385,7 @@ export class WorkstationPool extends EventEmitter {
     this.emit('jobs:update', this.getJobs())
   }
 
-  async submit(args: {
-    workflow: WorkflowJSON
-    hints: { preferWorkstation?: string }
-    mode?: SchedulerMode
-  }): Promise<string> {
+  async submit(args: SubmitArgs): Promise<string> {
     const mode = args.mode ?? this.currentMode
     const requireModel = extractRequiredModels(args.workflow)
     const job: Job = {
@@ -392,9 +424,25 @@ export class WorkstationPool extends EventEmitter {
 
       try {
         await submitGate.run(async () => {
+          // ── Phase 3: upload reference images to this workstation, if any ─────
+          let finalWorkflow = args.workflow
+          const char = args.hints.character
+          if (char && char.referenceImages.length > 0 && args.buildOptions) {
+            const uploaded: Record<string, string> = {}
+            for (const refPath of char.referenceImages) {
+              uploaded[refPath] = await uploadImageToComfy(ws.url, refPath)
+            }
+            // Rebuild the workflow now that we know the comfy-side filenames.
+            finalWorkflow = buildImageWorkflow({
+              ...args.buildOptions,
+              character: char,
+              uploadedReferenceFilenames: uploaded
+            })
+          }
+
           const res = await axios.post(
             `${ws.url}/prompt`,
-            { prompt: args.workflow, client_id: `digitalassets-${Date.now()}` },
+            { prompt: finalWorkflow, client_id: `digitalassets-${Date.now()}` },
             { timeout: 10_000 }
           )
           const promptId = res.data?.prompt_id as string | undefined
