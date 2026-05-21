@@ -10,6 +10,8 @@
  * shape ComfyUI accepts at /prompt.
  */
 
+import type { StoredCharacter } from '../charactersStore'
+
 export type WorkflowJSON = Record<
   string,
   { class_type: string; inputs: Record<string, unknown> }
@@ -36,21 +38,36 @@ export interface BuildImageWorkflowOptions {
   checkpoint?: string
   width?: number
   height?: number
+  character?: StoredCharacter
+  /** Set by submission flow after /upload/image: maps absolute local ref path → ComfyUI input filename. */
+  uploadedReferenceFilenames?: Record<string, string>
 }
 
 export function buildImageWorkflow(opts: BuildImageWorkflowOptions): WorkflowJSON {
+  // ── Compose prompt with character ─────────────────────────────────────────
+  const character = opts.character
+  const composedPrompt = character
+    ? [character.description, character.triggerWord, opts.prompt].filter(Boolean).join(', ')
+    : opts.prompt
+
+  // ── Resolve checkpoint (character default unless explicit) ────────────────
+  const ckptName =
+    opts.checkpoint ?? character?.defaultCheckpoint ?? DEFAULT_CHECKPOINT
+
   const {
-    prompt,
     negativePrompt = DEFAULT_NEGATIVE,
     seed = randomSeed(),
     steps = DEFAULT_STEPS,
     cfg = DEFAULT_CFG,
-    checkpoint = DEFAULT_CHECKPOINT,
     width = 1024,
     height = 1024
   } = opts
 
-  return {
+  // ── Base graph ───────────────────────────────────────────────────────────
+  // Node ids: 3=KSampler, 4=CheckpointLoaderSimple, 5=EmptyLatentImage,
+  // 6=CLIPTextEncode (positive), 7=CLIPTextEncode (negative),
+  // 8=VAEDecode, 9=SaveImage.
+  const wf: WorkflowJSON = {
     '3': {
       class_type: 'KSampler',
       inputs: {
@@ -60,37 +77,89 @@ export function buildImageWorkflow(opts: BuildImageWorkflowOptions): WorkflowJSO
         sampler_name: 'euler',
         scheduler: 'normal',
         denoise: 1,
-        model: ['4', 0],
+        model: ['4', 0],            // overwritten below if Lora/IPAdapter inserted
         positive: ['6', 0],
         negative: ['7', 0],
         latent_image: ['5', 0]
       }
     },
-    '4': {
-      class_type: 'CheckpointLoaderSimple',
-      inputs: { ckpt_name: checkpoint }
-    },
-    '5': {
-      class_type: 'EmptyLatentImage',
-      inputs: { width, height, batch_size: 1 }
-    },
-    '6': {
-      class_type: 'CLIPTextEncode',
-      inputs: { text: prompt, clip: ['4', 1] }
-    },
-    '7': {
-      class_type: 'CLIPTextEncode',
-      inputs: { text: negativePrompt, clip: ['4', 1] }
-    },
-    '8': {
-      class_type: 'VAEDecode',
-      inputs: { samples: ['3', 0], vae: ['4', 2] }
-    },
-    '9': {
-      class_type: 'SaveImage',
-      inputs: { images: ['8', 0], filename_prefix: 'DigitalAssets' }
+    '4': { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: ckptName } },
+    '5': { class_type: 'EmptyLatentImage', inputs: { width, height, batch_size: 1 } },
+    '6': { class_type: 'CLIPTextEncode', inputs: { text: composedPrompt, clip: ['4', 1] } },
+    '7': { class_type: 'CLIPTextEncode', inputs: { text: negativePrompt, clip: ['4', 1] } },
+    '8': { class_type: 'VAEDecode', inputs: { samples: ['3', 0], vae: ['4', 2] } },
+    '9': { class_type: 'SaveImage', inputs: { images: ['8', 0], filename_prefix: 'DigitalAssets' } }
+  }
+
+  // Track which node provides the "model" link into KSampler.
+  let modelSource: [string, number] = ['4', 0]
+  let nextId = 10
+
+  // ── LoraLoader (if character has a LoRA) ──────────────────────────────────
+  if (character?.loraName) {
+    const loraId = String(nextId++)
+    wf[loraId] = {
+      class_type: 'LoraLoader',
+      inputs: {
+        lora_name: character.loraName,
+        strength_model: character.loraWeight,
+        strength_clip: character.loraWeight,
+        model: modelSource,
+        clip: ['4', 1]
+      }
+    }
+    modelSource = [loraId, 0]
+  }
+
+  // ── IPAdapter chain (only when refs were uploaded) ────────────────────────
+  const refs = character?.referenceImages ?? []
+  const uploaded = opts.uploadedReferenceFilenames
+  if (refs.length > 0 && uploaded) {
+    // LoadImage nodes
+    const loadIds: string[] = []
+    for (const refPath of refs) {
+      const comfyName = uploaded[refPath]
+      if (!comfyName) continue
+      const id = String(nextId++)
+      wf[id] = {
+        class_type: 'LoadImage',
+        inputs: { image: comfyName }
+      }
+      loadIds.push(id)
+    }
+    if (loadIds.length > 0) {
+      // Single UnifiedLoader
+      const unifiedId = String(nextId++)
+      wf[unifiedId] = {
+        class_type: 'IPAdapterUnifiedLoader',
+        inputs: { model: modelSource, preset: 'PLUS (high strength)' }
+      }
+      let chainModel: [string, number] = [unifiedId, 0]
+      const ipAdapterPipe: [string, number] = [unifiedId, 1]
+      // One IPAdapter per ref, chained
+      for (const loadId of loadIds) {
+        const ipaId = String(nextId++)
+        wf[ipaId] = {
+          class_type: 'IPAdapter',
+          inputs: {
+            model: chainModel,
+            ipadapter: ipAdapterPipe,
+            image: [loadId, 0],
+            weight: character!.ipAdapterWeight,
+            start_at: 0,
+            end_at: 1
+          }
+        }
+        chainModel = [ipaId, 0]
+      }
+      modelSource = chainModel
     }
   }
+
+  // Final wiring: KSampler.model points at the last node in the chain.
+  ;(wf['3'].inputs as Record<string, unknown>).model = modelSource
+
+  return wf
 }
 
 export interface BuildAnimateDiffWorkflowOptions {
