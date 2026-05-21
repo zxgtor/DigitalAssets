@@ -1,10 +1,11 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import styles from './GenerateView.module.css'
 import { PillButton } from '../components/PillButton'
 import { toMediaUrlAsync } from '../utils/mediaUrl'
 import { WorkstationPanel } from '../components/WorkstationPanel'
 import { QueuePanel } from '../components/QueuePanel'
 import { useWorkstationPool } from '../hooks/useWorkstationPool'
+import { useProjects } from '../hooks/useProjects'
 import type { HistoryEntry, SchedulerMode } from '../types'
 
 interface GenerateViewProps {
@@ -38,6 +39,8 @@ function randomSeed(): number {
 
 export function GenerateView({ entry, onBack }: GenerateViewProps): React.JSX.Element {
   const pool = useWorkstationPool()
+  const { projects } = useProjects()
+  const [saveTo, setSaveTo] = useState<string>('')
   const [params, setParams] = useState<WorkflowParams>({
     prompt: entry?.prompt ?? '',
     negativePrompt: 'blurry, low quality, deformed, watermark, text, nsfw',
@@ -54,6 +57,8 @@ export function GenerateView({ entry, onBack }: GenerateViewProps): React.JSX.El
   const [globalMode, setGlobalMode] = useState<SchedulerMode>('lan-pool')
   const [wsOpen, setWsOpen] = useState(true)
   const [qOpen, setQOpen] = useState(true)
+  const savedJobIds = useRef<Set<string>>(new Set())
+  const saveToRef = useRef<string>('')
 
   // Load persisted settings (mode + panel toggle states) once.
   useEffect(() => {
@@ -63,6 +68,14 @@ export function GenerateView({ entry, onBack }: GenerateViewProps): React.JSX.El
       setQOpen(s.ui.queuePanelOpen)
     })
   }, [])
+
+  // Initialize saveTo from settings.lastProjectId (or first project if null).
+  useEffect(() => {
+    void window.api.settings.get().then((s) => {
+      if (s.lastProjectId) setSaveTo(s.lastProjectId)
+      else if (projects.length > 0) setSaveTo(projects[0].id)
+    })
+  }, [projects])
 
   const onWsToggle = useCallback((open: boolean): void => {
     setWsOpen(open)
@@ -83,12 +96,44 @@ export function GenerateView({ entry, onBack }: GenerateViewProps): React.JSX.El
     toMediaUrlAsync(entry.thumbnailPath).then(setThumbUrl).catch(() => {})
   }, [entry?.thumbnailPath])
 
+  // Keep saveToRef in sync so the job-completion effect always reads the latest value.
+  useEffect(() => {
+    saveToRef.current = saveTo
+  }, [saveTo])
+
   // Default selected job = most recent one
   useEffect(() => {
     if (selectedJobId == null && pool.jobs.length > 0) {
       setSelectedJobId(pool.jobs[0].id)
     }
   }, [pool.jobs, selectedJobId])
+
+  // Watch for newly-completed jobs and persist them to history.
+  useEffect(() => {
+    if (!entry) return
+    for (const job of pool.jobs) {
+      if (job.status !== 'done') continue
+      if (savedJobIds.current.has(job.id)) continue
+      savedJobIds.current.add(job.id)
+      const projectId = saveToRef.current
+      void (async () => {
+        await window.api.history.add({
+          kind: entry.kind,
+          filePath: entry.filePath,
+          fileName: entry.fileName,
+          prompt: params.prompt,
+          createdAt: job.finishedAt ?? Date.now(),
+          thumbnailPath: job.outputs?.[0],
+          ...(projectId ? { projectId } : {})
+        })
+        // Bump sticky default if changed.
+        const current = await window.api.settings.get()
+        if (projectId && current.lastProjectId !== projectId) {
+          await window.api.settings.set({ lastProjectId: projectId })
+        }
+      })()
+    }
+  }, [pool.jobs, entry, params.prompt])
 
   const set = useCallback(<K extends keyof WorkflowParams>(key: K, val: WorkflowParams[K]) => {
     setParams((prev) => ({ ...prev, [key]: val }))
@@ -226,6 +271,19 @@ export function GenerateView({ entry, onBack }: GenerateViewProps): React.JSX.El
                   ))}
                 </div>
               </div>
+            </div>
+
+            <div className={styles.runOnRow}>
+              <label className={styles.label}>Save to</label>
+              <select
+                className={styles.input}
+                value={saveTo}
+                onChange={(e) => setSaveTo(e.target.value)}
+              >
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
             </div>
 
             <div className={styles.runOnRow}>
