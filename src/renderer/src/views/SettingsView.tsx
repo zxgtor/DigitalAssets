@@ -55,8 +55,12 @@ export function SettingsView(): React.JSX.Element {
 
   const onAddNew = async (): Promise<void> => {
     if (!newName.trim() || !newUrl.trim()) return
-    await pool.add({ name: newName.trim(), url: newUrl.trim() })
-    setNewName(''); setNewUrl(''); setTestResult(null); setShowAddDialog(false)
+    try {
+      await pool.add({ name: newName.trim(), url: newUrl.trim() })
+      setNewName(''); setNewUrl(''); setTestResult(null); setShowAddDialog(false)
+    } catch (err) {
+      setTestResult(`✗ ${(err as Error).message ?? String(err)}`)
+    }
   }
 
   const set = useCallback(<K extends keyof Settings>(key: K, value: Settings[K]) => {
