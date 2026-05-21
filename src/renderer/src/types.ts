@@ -10,6 +10,7 @@ export type ViewName =
 
 export interface HistoryEntry {
   id: string
+  projectId: string
   kind: 'image' | 'video'
   filePath: string
   fileName: string

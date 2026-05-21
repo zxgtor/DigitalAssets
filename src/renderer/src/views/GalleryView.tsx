@@ -3,6 +3,8 @@ import styles from './GalleryView.module.css'
 import { PillButton } from '../components/PillButton'
 import { toMediaUrlAsync } from '../utils/mediaUrl'
 import type { HistoryEntry } from '../types'
+import { useProjects } from '../hooks/useProjects'
+import { ProjectSidebar } from '../components/ProjectSidebar'
 
 function formatDate(ts: number): string {
   const d = new Date(ts)
@@ -176,14 +178,36 @@ export function GalleryView({ onOpenGenerate }: GalleryViewProps): React.JSX.Ele
     load()
   }, [load])
 
-  const handleClear = useCallback(async () => {
-    // eslint-disable-next-line no-alert
-    if (!window.confirm('Clear all gallery entries? This cannot be undone.')) {
-      return
+  const { projects, create, rename, delete: deleteProject } = useProjects()
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+
+  // On project list change, default-select the first (Inbox) if nothing selected.
+  useEffect(() => {
+    if (!selectedProjectId && projects.length > 0) {
+      setSelectedProjectId(projects[0].id)
     }
-    await window.api.history.clear()
-    setEntries([])
+  }, [projects, selectedProjectId])
+
+  // Subscribe to history:update so cascade-deletes refresh the grid.
+  useEffect(() => {
+    const unsub = window.api.history.onUpdate((list) => setEntries(list))
+    return unsub
   }, [])
+
+  const inboxId = projects[0]?.id ?? null
+  const visibleEntries = entries.filter((e) => e.projectId === selectedProjectId)
+
+  const handleClear = useCallback(async () => {
+    if (!selectedProjectId) return
+    const name = projects.find((p) => p.id === selectedProjectId)?.name ?? 'this project'
+    const count = visibleEntries.length
+    // eslint-disable-next-line no-alert
+    if (!window.confirm(`Remove all ${count} entries from "${name}"? This cannot be undone.`)) return
+    // Remove each entry; broadcast will refresh.
+    for (const e of visibleEntries) {
+      await window.api.history.remove(e.id)
+    }
+  }, [selectedProjectId, projects, visibleEntries])
 
   const handleDelete = useCallback(
     async (id: string) => {
@@ -205,42 +229,56 @@ export function GalleryView({ onOpenGenerate }: GalleryViewProps): React.JSX.Ele
 
   return (
     <div className={styles.wrap}>
-      {entries.length > 0 && (
-        <div className={styles.toolbar}>
-          <span className={styles.count}>{entries.length} items</span>
-          <PillButton variant="ghost" size="sm" onClick={handleClear}>
-            Clear all
-          </PillButton>
-        </div>
-      )}
+      <div className={styles.layout}>
+        <ProjectSidebar
+          projects={projects}
+          entries={entries}
+          selectedId={selectedProjectId}
+          inboxId={inboxId}
+          onSelect={setSelectedProjectId}
+          onCreate={create}
+          onRename={rename}
+          onDelete={deleteProject}
+        />
+        <div className={styles.gridColumn}>
+          {visibleEntries.length > 0 && (
+            <div className={styles.toolbar}>
+              <span className={styles.count}>{visibleEntries.length} items</span>
+              <PillButton variant="ghost" size="sm" onClick={handleClear}>
+                Clear all
+              </PillButton>
+            </div>
+          )}
 
-      {loading ? (
-        <div className={styles.empty}>
-          <div className={styles.emptyRing} />
-          <span className={styles.emptyLabel}>Loading…</span>
+          {loading ? (
+            <div className={styles.empty}>
+              <div className={styles.emptyRing} />
+              <span className={styles.emptyLabel}>Loading…</span>
+            </div>
+          ) : visibleEntries.length === 0 ? (
+            <div className={styles.empty}>
+              <svg className={styles.emptyIcon} viewBox="0 0 48 48" fill="none" aria-hidden="true">
+                <rect x="4" y="10" width="40" height="28" rx="3" stroke="currentColor" strokeWidth="1.5"/>
+                <path d="M4 22l10-8 8 7 7-5 15 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <circle cx="15" cy="18" r="2.5" fill="currentColor" opacity="0.5"/>
+              </svg>
+              <span className={styles.emptyLabel}>Your gallery is empty</span>
+              <span className={styles.emptyHint}>Analyze an image or video to get started</span>
+            </div>
+          ) : (
+            <div className={styles.grid}>
+              {visibleEntries.map((entry) => (
+                <GalleryCard
+                  key={entry.id}
+                  entry={entry}
+                  onOpenGenerate={onOpenGenerate}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </div>
+          )}
         </div>
-      ) : entries.length === 0 ? (
-        <div className={styles.empty}>
-          <svg className={styles.emptyIcon} viewBox="0 0 48 48" fill="none" aria-hidden="true">
-            <rect x="4" y="10" width="40" height="28" rx="3" stroke="currentColor" strokeWidth="1.5"/>
-            <path d="M4 22l10-8 8 7 7-5 15 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            <circle cx="15" cy="18" r="2.5" fill="currentColor" opacity="0.5"/>
-          </svg>
-          <span className={styles.emptyLabel}>Your gallery is empty</span>
-          <span className={styles.emptyHint}>Analyze an image or video to get started</span>
-        </div>
-      ) : (
-        <div className={styles.grid}>
-          {entries.map((entry) => (
-            <GalleryCard
-              key={entry.id}
-              entry={entry}
-              onOpenGenerate={onOpenGenerate}
-              onDelete={handleDelete}
-            />
-          ))}
-        </div>
-      )}
+      </div>
     </div>
   )
 }
