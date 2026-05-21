@@ -1,0 +1,31 @@
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+.label {
+  font-size: 12px;
+  opacity: 0.75;
+}
+.select {
+  flex: 1;
+  padding: 4px 8px;
+  background: var(--bg-elevated, #222);
+  border: 1px solid var(--border, #333);
+  border-radius: 4px;
+  color: inherit;
+  font-size: 13px;
+}
+.manageBtn {
+  padding: 4px 10px;
+  background: none;
+  border: 1px solid var(--border, #333);
+  border-radius: 4px;
+  color: inherit;
+  cursor: pointer;
+  font-size: 12px;
+}
+.manageBtn:hover {
+  background: var(--bg-elevated, #2a2a2a);
+}
