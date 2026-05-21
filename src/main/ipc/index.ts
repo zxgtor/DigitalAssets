@@ -7,6 +7,7 @@ import { registerWorkflowHandlers } from './workflow'
 import { registerComfyHandlers } from './comfy'
 import { registerWorkstationHandlers } from './workstations'
 import { registerProjectHandlers } from './projects'
+import { registerCharacterHandlers } from './characters'
 import { checkHealth, listModels } from '../services/ollama'
 import { getMediaPort } from '../services/mediaServer'
 
@@ -62,4 +63,5 @@ export function registerIpcHandlers(): void {
   registerComfyHandlers()
   registerWorkstationHandlers()
   registerProjectHandlers()
+  registerCharacterHandlers()
 }
