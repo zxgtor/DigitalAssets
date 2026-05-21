@@ -12,6 +12,8 @@ export interface Settings {
   /** v2 fields — present once migrated */
   schedulerMode: SchedulerModeValue
   ui: { workstationsPanelOpen: boolean; queuePanelOpen: boolean }
+  /** v3 fields */
+  lastProjectId: string | null
 }
 
 export interface ImageAnalysisResult {

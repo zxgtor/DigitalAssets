@@ -31,11 +31,16 @@ export interface SettingsV2 extends SettingsV1 {
   ui: { workstationsPanelOpen: boolean; queuePanelOpen: boolean }
 }
 
-/** Public type. Always v2 once `getSettings()` returns. */
-export type Settings = SettingsV2
+export interface SettingsV3 extends Omit<SettingsV2, 'version'> {
+  version: 3
+  lastProjectId: string | null
+}
+
+/** Public type. Always v3 once `getSettings()` returns. */
+export type Settings = SettingsV3
 
 export const DEFAULT_SETTINGS: Settings = {
-  version: 2,
+  version: 3,
   ollamaBaseUrl: 'http://localhost:11434',
   ollamaModel: 'llava',
   maxKeyframes: 8,
@@ -44,36 +49,48 @@ export const DEFAULT_SETTINGS: Settings = {
   workstations: [],
   schedulerMode: 'lan-pool',
   discovery: { portRange: [8188, 8190] },
-  ui: { workstationsPanelOpen: true, queuePanelOpen: true }
+  ui: { workstationsPanelOpen: true, queuePanelOpen: true },
+  lastProjectId: null
 }
 
 // ─── Migration ──────────────────────────────────────────────────────────────
 
 /**
- * Convert any persisted settings object to v2. Idempotent.
+ * Convert any persisted settings object to v3. Idempotent.
  *
- * v1 → v2: the legacy `comfyUrl` becomes the first workstation entry
- * (or `[]` if it was empty).
+ * v1 → v3: the legacy `comfyUrl` becomes the first workstation entry
+ * (or `[]` if it was empty), then lastProjectId is added as null.
+ * v2 → v3: lastProjectId is added as null.
  */
-export function migrateSettings(raw: Partial<SettingsV2> & Partial<SettingsV1>): SettingsV2 {
+export function migrateSettings(
+  raw: Partial<SettingsV3> & Partial<SettingsV2> & Partial<SettingsV1>
+): SettingsV3 {
+  if (raw.version === 3) {
+    return { ...DEFAULT_SETTINGS, ...raw, version: 3 }
+  }
+
+  // First, normalize to v2 (handles v1 path inline).
+  let v2: SettingsV2
   if (raw.version === 2) {
-    return { ...DEFAULT_SETTINGS, ...raw, version: 2 }
+    v2 = { ...DEFAULT_SETTINGS, ...raw, version: 2 } as SettingsV2
+  } else {
+    const comfyUrl = (raw.comfyUrl ?? '').trim().replace(/\/$/, '')
+    const workstations: StoredWorkstation[] = comfyUrl
+      ? [{ id: randomUUID(), name: 'Local ComfyUI', url: comfyUrl, enabled: true }]
+      : []
+    v2 = {
+      ...DEFAULT_SETTINGS,
+      ...raw,
+      version: 2,
+      workstations,
+      schedulerMode: 'lan-pool',
+      discovery: { portRange: [8188, 8190] },
+      ui: { workstationsPanelOpen: true, queuePanelOpen: true }
+    } as SettingsV2
   }
 
-  const comfyUrl = (raw.comfyUrl ?? '').trim().replace(/\/$/, '')
-  const workstations: StoredWorkstation[] = comfyUrl
-    ? [{ id: randomUUID(), name: 'Local ComfyUI', url: comfyUrl, enabled: true }]
-    : []
-
-  return {
-    ...DEFAULT_SETTINGS,
-    ...raw,
-    version: 2,
-    workstations,
-    schedulerMode: 'lan-pool',
-    discovery: { portRange: [8188, 8190] },
-    ui: { workstationsPanelOpen: true, queuePanelOpen: true }
-  }
+  // v2 → v3: add lastProjectId field (null until first generation picks one).
+  return { ...v2, version: 3, lastProjectId: null }
 }
 
 // ─── Disk I/O ───────────────────────────────────────────────────────────────
