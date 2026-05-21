@@ -78,3 +78,5 @@ export type {
   SchedulerMode,
   DiscoveryCandidate
 } from '@preload/index'
+
+export type { StoredProject } from '@preload/index'
