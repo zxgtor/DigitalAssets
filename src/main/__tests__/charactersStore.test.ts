@@ -164,4 +164,16 @@ describe('charactersStore', () => {
     // The malicious file is untouched.
     expect(existsSync(malicious)).toBe(true)
   })
+
+  it('removeReference rejects sibling-prefix path (refs-evil)', () => {
+    const c = addCharacter({ name: 'Aria' })
+    // Simulate an attacker-supplied path that shares the refs/ prefix.
+    const charDir = require('path').join(tmpDir, 'characters', c.id)
+    const evilDir = require('path').join(charDir, 'refs-evil')
+    require('fs').mkdirSync(evilDir, { recursive: true })
+    const evilFile = require('path').join(evilDir, 'x.png')
+    require('fs').writeFileSync(evilFile, Buffer.from([0x89]))
+    expect(() => removeReference(c.id, evilFile)).toThrow(/invalid reference path/i)
+    expect(require('fs').existsSync(evilFile)).toBe(true)
+  })
 })

@@ -9,7 +9,7 @@ import {
   unlinkSync,
   rmSync
 } from 'fs'
-import { join, extname, resolve } from 'path'
+import { join, extname, resolve, sep } from 'path'
 import { randomUUID } from 'crypto'
 
 export const REF_CAP = 10
@@ -156,7 +156,7 @@ export function removeReference(id: string, refPath: string): void {
   // Defense against path traversal: refPath must be inside the character's refs folder.
   const refsFolder = resolve(getRefsFolder(id))
   const resolvedRef = resolve(refPath)
-  if (!resolvedRef.startsWith(refsFolder)) {
+  if (!resolvedRef.startsWith(refsFolder + sep)) {
     throw new Error('Invalid reference path')
   }
   if (existsSync(resolvedRef)) unlinkSync(resolvedRef)
