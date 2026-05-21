@@ -5,13 +5,11 @@ import { getSettings } from '../store'
 import {
   buildAnimateDiffWorkflow,
   buildImageWorkflow,
-  WorkflowJSON
+  WorkflowJSON,
+  type BuildImageWorkflowOptions
 } from '../services/workflow'
 
-interface BuildImageArgs {
-  prompt: string
-  negativePrompt?: string
-}
+type BuildImageArgs = BuildImageWorkflowOptions
 
 interface BuildVideoArgs {
   masterPrompt: string
@@ -31,10 +29,7 @@ export type SaveResult =
 export function registerWorkflowHandlers(): void {
   ipcMain.handle('workflow:buildImage', async (_event, args: BuildImageArgs): Promise<WorkflowJSON> => {
     if (!args?.prompt) throw new Error('workflow:buildImage requires a prompt')
-    return buildImageWorkflow({
-      prompt: args.prompt,
-      negativePrompt: args.negativePrompt
-    })
+    return buildImageWorkflow(args)
   })
 
   ipcMain.handle('workflow:buildVideo', async (_event, args: BuildVideoArgs): Promise<WorkflowJSON> => {

@@ -6,7 +6,11 @@ import { WorkstationPanel } from '../components/WorkstationPanel'
 import { QueuePanel } from '../components/QueuePanel'
 import { useWorkstationPool } from '../hooks/useWorkstationPool'
 import { useProjects } from '../hooks/useProjects'
+import { useCharacters } from '../hooks/useCharacters'
+import { CharacterPicker } from '../components/CharacterPicker'
+import { CharacterDetail } from '../components/CharacterDetail'
 import type { HistoryEntry, SchedulerMode } from '../types'
+import type { StoredCharacter, BuildImageWorkflowOptions } from '@preload/index'
 
 interface GenerateViewProps {
   entry: HistoryEntry | null
@@ -40,6 +44,14 @@ function randomSeed(): number {
 export function GenerateView({ entry, onBack }: GenerateViewProps): React.JSX.Element {
   const pool = useWorkstationPool()
   const { projects } = useProjects()
+  const chars = useCharacters()
+  const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null)
+  const [manageCharOpen, setManageCharOpen] = useState(false)
+
+  const selectedCharacter: StoredCharacter | null = selectedCharacterId
+    ? chars.characters.find((c) => c.id === selectedCharacterId) ?? null
+    : null
+
   const [saveTo, setSaveTo] = useState<string>('')
   const [params, setParams] = useState<WorkflowParams>({
     prompt: entry?.prompt ?? '',
@@ -148,29 +160,33 @@ export function GenerateView({ entry, onBack }: GenerateViewProps): React.JSX.El
 
   const handleQueue = useCallback(async () => {
     try {
-      const workflow = await window.api.workflow.buildImage({
+      const buildOptions: BuildImageWorkflowOptions = {
         prompt: params.prompt,
-        negativePrompt: params.negativePrompt
+        negativePrompt: params.negativePrompt,
+        checkpoint: params.checkpoint,
+        steps: params.steps,
+        cfg: params.cfg,
+        seed: params.seed,
+        width: params.width,
+        height: params.height,
+        character: selectedCharacter ?? undefined
+      }
+      const workflow = await window.api.workflow.buildImage(buildOptions)
+      const jobId = await pool.submit({
+        workflow,
+        hints: {
+          preferWorkstation: runOn === 'auto' ? undefined : runOn,
+          character: selectedCharacter ?? undefined
+        },
+        buildOptions
       })
-      if (workflow['4']) workflow['4'].inputs.ckpt_name = params.checkpoint
-      if (workflow['3']) {
-        workflow['3'].inputs.steps = params.steps
-        workflow['3'].inputs.cfg = params.cfg
-        workflow['3'].inputs.seed = params.seed
-      }
-      if (workflow['5']) {
-        workflow['5'].inputs.width = params.width
-        workflow['5'].inputs.height = params.height
-      }
-      const pref = runOn === 'auto' ? undefined : runOn
-      const jobId = await pool.submit(workflow, pref)
       setSelectedJobId(jobId)
     } catch (err) {
       // pool.submit doesn't throw; errors land in the job. Network errors on the IPC bridge would though.
       // eslint-disable-next-line no-alert
       alert(`Submit failed: ${err instanceof Error ? err.message : String(err)}`)
     }
-  }, [params, runOn, pool])
+  }, [params, runOn, pool, selectedCharacter])
 
   const handleRandomSeed = useCallback(() => set('seed', randomSeed()), [set])
   const onRetry = useCallback(async (jobId: string) => {
@@ -201,6 +217,7 @@ export function GenerateView({ entry, onBack }: GenerateViewProps): React.JSX.El
   const noWorkstations = !pool.loading && pool.workstations.length === 0
 
   return (
+    <>
     <div className={styles.wrap}>
       <div className={styles.inner}>
         <div className={styles.header}>
@@ -280,6 +297,19 @@ export function GenerateView({ entry, onBack }: GenerateViewProps): React.JSX.El
               </div>
             </div>
 
+            <CharacterPicker
+              characters={chars.characters}
+              selectedId={selectedCharacterId}
+              onSelect={setSelectedCharacterId}
+              onManage={async () => {
+                if (!selectedCharacter) {
+                  const c = await chars.create({ name: 'Untitled' })
+                  setSelectedCharacterId(c.id)
+                }
+                setManageCharOpen(true)
+              }}
+            />
+
             <div className={styles.runOnRow}>
               <label className={styles.label}>Save to</label>
               <select
@@ -349,6 +379,22 @@ export function GenerateView({ entry, onBack }: GenerateViewProps): React.JSX.El
         </div>
       </div>
     </div>
+
+    <CharacterDetail
+      open={manageCharOpen}
+      character={selectedCharacter}
+      onClose={() => setManageCharOpen(false)}
+      onSave={async (patch) => {
+        if (selectedCharacter) await chars.update(selectedCharacter.id, patch)
+      }}
+      onAddReference={async (sourcePath) => {
+        if (selectedCharacter) await chars.addReference(selectedCharacter.id, sourcePath)
+      }}
+      onRemoveReference={async (refPath) => {
+        if (selectedCharacter) await chars.removeReference(selectedCharacter.id, refPath)
+      }}
+    />
+    </>
   )
 }
 

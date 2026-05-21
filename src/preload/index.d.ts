@@ -119,6 +119,18 @@ export interface StoredCharacter {
   createdAt: number
 }
 
+export interface BuildImageWorkflowOptions {
+  prompt: string
+  negativePrompt?: string
+  seed?: number
+  steps?: number
+  cfg?: number
+  checkpoint?: string
+  width?: number
+  height?: number
+  character?: StoredCharacter
+}
+
 export interface StoredProject {
   id: string
   name: string
@@ -188,7 +200,7 @@ export interface Api {
     onUpdate: (cb: (list: StoredCharacter[]) => void) => () => void
   }
   workflow: {
-    buildImage: (args: { prompt: string; negativePrompt?: string }) => Promise<WorkflowJSON>
+    buildImage: (args: BuildImageWorkflowOptions) => Promise<WorkflowJSON>
     buildVideo: (args: {
       masterPrompt: string
       keyframes: Array<{ timeSec: number; prompt: string }>
@@ -215,7 +227,11 @@ export interface Api {
     edit: (id: string, patch: Partial<{ name: string; url: string; enabled: boolean }>) => Promise<void>
     refreshModels: (id: string) => Promise<void>
     setMode: (mode: SchedulerMode) => Promise<void>
-    submit: (args: { workflow: WorkflowJSON; preferWorkstation?: string }) => Promise<string>
+    submit: (args: {
+      workflow: WorkflowJSON
+      hints?: { preferWorkstation?: string; character?: StoredCharacter }
+      buildOptions?: BuildImageWorkflowOptions
+    }) => Promise<string>
     getJobs: () => Promise<Job[]>
     clearDoneJobs: () => Promise<void>
     removeJob: (id: string) => Promise<void>

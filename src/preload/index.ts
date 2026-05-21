@@ -142,6 +142,18 @@ export interface StoredCharacter {
   createdAt: number
 }
 
+export interface BuildImageWorkflowOptions {
+  prompt: string
+  negativePrompt?: string
+  seed?: number
+  steps?: number
+  cfg?: number
+  checkpoint?: string
+  width?: number
+  height?: number
+  character?: StoredCharacter
+}
+
 const api = {
   settings: {
     get: (): Promise<Settings> => ipcRenderer.invoke('settings:get'),
@@ -230,7 +242,7 @@ const api = {
     }
   },
   workflow: {
-    buildImage: (args: { prompt: string; negativePrompt?: string }): Promise<WorkflowJSON> =>
+    buildImage: (args: BuildImageWorkflowOptions): Promise<WorkflowJSON> =>
       ipcRenderer.invoke('workflow:buildImage', args),
     buildVideo: (args: {
       masterPrompt: string
@@ -262,7 +274,11 @@ const api = {
       ipcRenderer.invoke('workstations:edit', { id, patch }),
     refreshModels: (id: string): Promise<void> => ipcRenderer.invoke('workstations:refreshModels', id),
     setMode: (mode: SchedulerMode): Promise<void> => ipcRenderer.invoke('workstations:setMode', mode),
-    submit: (args: { workflow: WorkflowJSON; preferWorkstation?: string }): Promise<string> =>
+    submit: (args: {
+      workflow: WorkflowJSON
+      hints?: { preferWorkstation?: string; character?: StoredCharacter }
+      buildOptions?: BuildImageWorkflowOptions
+    }): Promise<string> =>
       ipcRenderer.invoke('workstations:submit', args),
     getJobs: (): Promise<Job[]> => ipcRenderer.invoke('workstations:getJobs'),
     clearDoneJobs: (): Promise<void> => ipcRenderer.invoke('workstations:clearDoneJobs'),

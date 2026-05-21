@@ -1,5 +1,12 @@
 import { useEffect, useState, useCallback } from 'react'
 import type { Workstation, Job, SchedulerMode, DiscoveryCandidate } from '../types'
+import type { StoredCharacter, BuildImageWorkflowOptions } from '@preload/index'
+
+export interface PoolSubmitArgs {
+  workflow: unknown
+  hints?: { preferWorkstation?: string; character?: StoredCharacter }
+  buildOptions?: BuildImageWorkflowOptions
+}
 
 export interface UseWorkstationPool {
   workstations: Workstation[]
@@ -10,7 +17,7 @@ export interface UseWorkstationPool {
   edit: (id: string, patch: Partial<{ name: string; url: string; enabled: boolean }>) => Promise<void>
   refreshModels: (id: string) => Promise<void>
   setMode: (mode: SchedulerMode) => Promise<void>
-  submit: (workflow: unknown, preferWorkstation?: string) => Promise<string>
+  submit: (args: PoolSubmitArgs) => Promise<string>
   cancel: (id: string) => Promise<void>
   removeJob: (id: string) => Promise<void>
   clearDoneJobs: () => Promise<void>
@@ -68,8 +75,8 @@ export function useWorkstationPool(): UseWorkstationPool {
     edit: (id, patch) => window.api.workstations.edit(id, patch),
     refreshModels: (id) => window.api.workstations.refreshModels(id),
     setMode: (mode) => window.api.workstations.setMode(mode),
-    submit: (workflow, preferWorkstation) =>
-      window.api.workstations.submit({ workflow: workflow as never, preferWorkstation }),
+    submit: ({ workflow, hints, buildOptions }) =>
+      window.api.workstations.submit({ workflow: workflow as never, hints, buildOptions }),
     cancel: (id) => window.api.workstations.cancel(id),
     removeJob: (id) => window.api.workstations.removeJob(id),
     clearDoneJobs: () => window.api.workstations.clearDoneJobs(),

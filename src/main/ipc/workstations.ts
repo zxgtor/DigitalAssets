@@ -1,9 +1,10 @@
 import { ipcMain, BrowserWindow } from 'electron'
 import { getPool, type Workstation, type Job } from '../services/workstationPool'
-import type { WorkflowJSON } from '../services/workflow'
+import type { WorkflowJSON, BuildImageWorkflowOptions } from '../services/workflow'
 import type { SchedulerMode } from '../store'
 import { getSettings, setSettings } from '../store'
 import type { DiscoveryCandidate } from '../utils/discovery'
+import type { StoredCharacter } from '../charactersStore'
 
 function broadcast(channel: string, payload: unknown): void {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -46,8 +47,21 @@ export function registerWorkstationHandlers(): void {
     setSettings({ schedulerMode: mode })
   })
 
-  ipcMain.handle('workstations:submit', async (_e, args: { workflow: WorkflowJSON; preferWorkstation?: string }) => {
-    return pool.submit({ workflow: args.workflow, hints: { preferWorkstation: args.preferWorkstation } })
+  ipcMain.handle('workstations:submit', async (_e, args: {
+    workflow: WorkflowJSON
+    hints?: { preferWorkstation?: string; character?: StoredCharacter }
+    buildOptions?: BuildImageWorkflowOptions
+    /** Legacy field — still accepted for backwards compat */
+    preferWorkstation?: string
+  }) => {
+    return pool.submit({
+      workflow: args.workflow,
+      hints: {
+        preferWorkstation: args.hints?.preferWorkstation ?? args.preferWorkstation,
+        character: args.hints?.character
+      },
+      buildOptions: args.buildOptions
+    })
   })
 
   ipcMain.handle('workstations:getJobs', () => pool.getJobs())
