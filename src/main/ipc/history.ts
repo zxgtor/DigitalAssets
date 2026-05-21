@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import { addHistoryEntry, clearHistory, deleteHistoryEntry, listHistory, HistoryEntry } from '../historyStore'
 import { registerPath } from '../services/mediaServer'
+import { ensureInbox } from '../projectsStore'
 
 export function registerHistoryHandlers(): void {
   ipcMain.handle('history:list', (): HistoryEntry[] => {
@@ -17,7 +18,7 @@ export function registerHistoryHandlers(): void {
   ipcMain.handle(
     'history:add',
     (_event, entry: Omit<HistoryEntry, 'id'> & { id?: string }): HistoryEntry => {
-      return addHistoryEntry(entry)
+      return addHistoryEntry({ ...entry, projectId: entry.projectId ?? ensureInbox() })
     }
   )
 
