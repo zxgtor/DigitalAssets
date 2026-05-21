@@ -129,6 +129,19 @@ export interface DiscoveryCandidate {
   vramTotal: number
 }
 
+export interface StoredCharacter {
+  id: string
+  name: string
+  description: string
+  triggerWord: string | null
+  loraName: string | null
+  loraWeight: number
+  defaultCheckpoint: string | null
+  referenceImages: string[]
+  ipAdapterWeight: number
+  createdAt: number
+}
+
 const api = {
   settings: {
     get: (): Promise<Settings> => ipcRenderer.invoke('settings:get'),
@@ -195,6 +208,25 @@ const api = {
       const handler = (_e: Electron.IpcRendererEvent, list: StoredProject[]): void => cb(list)
       ipcRenderer.on('projects:update', handler)
       return () => ipcRenderer.removeListener('projects:update', handler)
+    }
+  },
+  characters: {
+    list: (): Promise<StoredCharacter[]> =>
+      ipcRenderer.invoke('characters:list'),
+    create: (input: { name: string } & Partial<Omit<StoredCharacter, 'id' | 'createdAt' | 'referenceImages'>>): Promise<StoredCharacter> =>
+      ipcRenderer.invoke('characters:create', input),
+    update: (id: string, patch: Partial<Omit<StoredCharacter, 'id' | 'createdAt' | 'referenceImages'>>): Promise<StoredCharacter> =>
+      ipcRenderer.invoke('characters:update', { id, patch }),
+    delete: (id: string): Promise<void> =>
+      ipcRenderer.invoke('characters:delete', { id }),
+    addReference: (id: string, sourcePath: string): Promise<string> =>
+      ipcRenderer.invoke('characters:addReference', { id, sourcePath }),
+    removeReference: (id: string, refPath: string): Promise<void> =>
+      ipcRenderer.invoke('characters:removeReference', { id, refPath }),
+    onUpdate: (cb: (list: StoredCharacter[]) => void): (() => void) => {
+      const handler = (_e: Electron.IpcRendererEvent, list: StoredCharacter[]): void => cb(list)
+      ipcRenderer.on('characters:update', handler)
+      return () => ipcRenderer.removeListener('characters:update', handler)
     }
   },
   workflow: {

@@ -106,6 +106,19 @@ export interface DiscoveryCandidate {
   vramTotal: number
 }
 
+export interface StoredCharacter {
+  id: string
+  name: string
+  description: string
+  triggerWord: string | null
+  loraName: string | null
+  loraWeight: number
+  defaultCheckpoint: string | null
+  referenceImages: string[]
+  ipAdapterWeight: number
+  createdAt: number
+}
+
 export interface StoredProject {
   id: string
   name: string
@@ -164,6 +177,15 @@ export interface Api {
     rename: (id: string, name: string) => Promise<StoredProject>
     delete: (id: string) => Promise<void>
     onUpdate: (cb: (list: StoredProject[]) => void) => () => void
+  }
+  characters: {
+    list: () => Promise<StoredCharacter[]>
+    create: (input: { name: string } & Partial<Omit<StoredCharacter, 'id' | 'createdAt' | 'referenceImages'>>) => Promise<StoredCharacter>
+    update: (id: string, patch: Partial<Omit<StoredCharacter, 'id' | 'createdAt' | 'referenceImages'>>) => Promise<StoredCharacter>
+    delete: (id: string) => Promise<void>
+    addReference: (id: string, sourcePath: string) => Promise<string>
+    removeReference: (id: string, refPath: string) => Promise<void>
+    onUpdate: (cb: (list: StoredCharacter[]) => void) => () => void
   }
   workflow: {
     buildImage: (args: { prompt: string; negativePrompt?: string }) => Promise<WorkflowJSON>
