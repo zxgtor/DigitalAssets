@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import type { StoredProject, HistoryEntry } from '@preload/index'
 import styles from './ProjectSidebar.module.css'
 
@@ -27,14 +27,21 @@ function ProjectRow({
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(p.name)
   const [menuOpen, setMenuOpen] = useState(false)
+  const committing = useRef(false)
 
   const commitRename = async (): Promise<void> => {
-    if (draft.trim() && draft.trim() !== p.name) {
-      await onRename(draft.trim())
-    } else {
-      setDraft(p.name)
+    if (committing.current) return
+    committing.current = true
+    try {
+      if (draft.trim() && draft.trim() !== p.name) {
+        await onRename(draft.trim())
+      } else {
+        setDraft(p.name)
+      }
+      setEditing(false)
+    } finally {
+      committing.current = false
     }
-    setEditing(false)
   }
 
   return (
@@ -60,7 +67,9 @@ function ProjectRow({
       <button
         className={styles.menuBtn}
         title="More"
+        aria-label="More"
         onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v) }}
+        onKeyDown={(e) => { if (e.key === 'Escape') setMenuOpen(false) }}
       >⋯</button>
       {menuOpen && (
         <div className={styles.menu} onMouseLeave={() => setMenuOpen(false)}>
@@ -83,17 +92,24 @@ export function ProjectSidebar(props: Props): React.JSX.Element {
   const { projects, entries, selectedId, inboxId, onSelect, onCreate, onRename, onDelete } = props
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
+  const creating = useRef(false)
 
   const counts = new Map<string, number>()
   for (const e of entries) counts.set(e.projectId, (counts.get(e.projectId) ?? 0) + 1)
 
   const commitCreate = async (): Promise<void> => {
-    if (newName.trim()) {
-      const p = await onCreate(newName.trim())
-      onSelect((p as StoredProject).id)
+    if (creating.current) return
+    creating.current = true
+    try {
+      if (newName.trim()) {
+        const p = await onCreate(newName.trim())
+        onSelect((p as StoredProject).id)
+      }
+      setNewName('')
+      setAdding(false)
+    } finally {
+      creating.current = false
     }
-    setNewName('')
-    setAdding(false)
   }
 
   return (
