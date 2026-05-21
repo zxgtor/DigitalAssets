@@ -15,7 +15,10 @@ export type WorkflowJSON = Record<
   { class_type: string; inputs: Record<string, unknown> }
 >
 
-const DEFAULT_CHECKPOINT = 'sd_xl_base_1.0.safetensors'
+const DEFAULT_CHECKPOINT = 'sd_xl_turbo_1.0_fp16.safetensors'
+// Turbo is distilled; it expects ~4 steps and cfg=1.0. Base SDXL would use 25/7.0.
+const DEFAULT_STEPS = 4
+const DEFAULT_CFG = 1.0
 const DEFAULT_NEGATIVE = 'blurry, low quality, deformed'
 const ANIMATEDIFF_NEGATIVE = 'blurry, low quality, deformed, watermark'
 
@@ -40,8 +43,8 @@ export function buildImageWorkflow(opts: BuildImageWorkflowOptions): WorkflowJSO
     prompt,
     negativePrompt = DEFAULT_NEGATIVE,
     seed = randomSeed(),
-    steps = 25,
-    cfg = 7.0,
+    steps = DEFAULT_STEPS,
+    cfg = DEFAULT_CFG,
     checkpoint = DEFAULT_CHECKPOINT,
     width = 1024,
     height = 1024
