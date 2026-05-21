@@ -81,3 +81,4 @@ export type {
 } from '@preload/index'
 
 export type { StoredProject } from '@preload/index'
+export type { StoredCharacter } from '@preload/index'
