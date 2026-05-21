@@ -226,6 +226,52 @@
   transform: scale(0.95);
 }
 
+.contextMenu {
+  position: fixed;
+  z-index: 50;
+  min-width: 200px;
+  background: var(--bg-card, #1a1a1a);
+  border: 1px solid var(--border, #333);
+  border-radius: 6px;
+  padding: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.contextMenuHeader {
+  padding: 6px 10px;
+  font-size: 11px;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.contextMenuEmpty {
+  padding: 8px 10px;
+  font-size: 12px;
+  opacity: 0.55;
+}
+
+.contextMenuItem {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  background: none;
+  border: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font-size: 13px;
+  border-radius: 4px;
+}
+
+.contextMenuItem:hover {
+  background: var(--bg-elevated, #2a2a2a);
+}
+
+.contextMenuItem:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* Responsive grid */
 @media (max-width: 1400px) {
   .grid {

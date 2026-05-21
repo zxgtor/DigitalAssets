@@ -5,6 +5,10 @@ import { toMediaUrlAsync } from '../utils/mediaUrl'
 import type { HistoryEntry } from '../types'
 import { useProjects } from '../hooks/useProjects'
 import { ProjectSidebar } from '../components/ProjectSidebar'
+import { useCharacters } from '../hooks/useCharacters'
+import { CharactersSidebar } from '../components/CharactersSidebar'
+import { CharacterDetail } from '../components/CharacterDetail'
+import type { StoredCharacter } from '@preload/index'
 
 function formatDate(ts: number): string {
   const d = new Date(ts)
@@ -30,9 +34,10 @@ interface GalleryCardProps {
   entry: HistoryEntry
   onOpenGenerate: (entry: HistoryEntry) => void
   onDelete: (id: string) => void
+  onContextMenu: (e: React.MouseEvent, entry: HistoryEntry) => void
 }
 
-function GalleryCard({ entry, onOpenGenerate, onDelete }: GalleryCardProps): React.JSX.Element {
+function GalleryCard({ entry, onOpenGenerate, onDelete, onContextMenu }: GalleryCardProps): React.JSX.Element {
   const [copied, setCopied] = useState(false)
   const [bgImage, setBgImage] = useState<string>('')
   const [videoSrc, setVideoSrc] = useState<string>('')
@@ -90,12 +95,20 @@ function GalleryCard({ entry, onOpenGenerate, onDelete }: GalleryCardProps): Rea
     onDelete(entry.id)
   }, [entry.id, onDelete])
 
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      onContextMenu(e, entry)
+    },
+    [entry, onContextMenu]
+  )
+
   return (
     <div
       className={styles.card}
       style={bgImage ? { backgroundImage: `url(${bgImage})` } : {}}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      onContextMenu={handleContextMenu}
     >
       {/* Video overlay (hidden by default, shown on hover) */}
       {entry.kind === 'video' && videoSrc && (
@@ -181,6 +194,14 @@ export function GalleryView({ onOpenGenerate }: GalleryViewProps): React.JSX.Ele
   const { projects, create, rename, delete: deleteProject } = useProjects()
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
 
+  const chars = useCharacters()
+  const [detailFor, setDetailFor] = useState<StoredCharacter | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; entryId: string } | null>(null)
+
+  const currentDetail = detailFor
+    ? chars.characters.find((c) => c.id === detailFor.id) ?? null
+    : null
+
   // On project list change, default-select the first (Inbox) if nothing selected.
   useEffect(() => {
     if (!selectedProjectId && projects.length > 0) {
@@ -223,6 +244,14 @@ export function GalleryView({ onOpenGenerate }: GalleryViewProps): React.JSX.Ele
         // eslint-disable-next-line no-alert
         alert(`Failed to delete:\n\n${err instanceof Error ? err.message : String(err)}`)
       }
+    },
+    []
+  )
+
+  const handleCardContextMenu = useCallback(
+    (e: React.MouseEvent, entry: HistoryEntry) => {
+      e.preventDefault()
+      setContextMenu({ x: e.clientX, y: e.clientY, entryId: entry.id })
     },
     []
   )
@@ -273,12 +302,66 @@ export function GalleryView({ onOpenGenerate }: GalleryViewProps): React.JSX.Ele
                   entry={entry}
                   onOpenGenerate={onOpenGenerate}
                   onDelete={handleDelete}
+                  onContextMenu={handleCardContextMenu}
                 />
               ))}
             </div>
           )}
         </div>
+        <CharactersSidebar
+          characters={chars.characters}
+          onOpenDetail={(c) => setDetailFor(c)}
+          onCreate={(name) => chars.create({ name })}
+          onDelete={chars.delete}
+        />
       </div>
+
+      {contextMenu && (
+        <div
+          className={styles.contextMenu}
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onMouseLeave={() => setContextMenu(null)}
+        >
+          <div className={styles.contextMenuHeader}>Use as reference for…</div>
+          {chars.characters.length === 0 && (
+            <div className={styles.contextMenuEmpty}>No characters yet</div>
+          )}
+          {chars.characters.map((c) => {
+            const ctxEntry = visibleEntries.find((e) => e.id === contextMenu.entryId)
+            const sourcePath = ctxEntry?.filePath
+            const atCap = c.referenceImages.length >= 10
+            return (
+              <button
+                key={c.id}
+                type="button"
+                className={styles.contextMenuItem}
+                disabled={atCap || !sourcePath}
+                onClick={async () => {
+                  setContextMenu(null)
+                  if (sourcePath) await chars.addReference(c.id, sourcePath)
+                }}
+              >
+                {c.name} {atCap ? '(full)' : ''}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      <CharacterDetail
+        open={currentDetail !== null}
+        character={currentDetail}
+        onClose={() => setDetailFor(null)}
+        onSave={async (patch) => {
+          if (detailFor) await chars.update(detailFor.id, patch)
+        }}
+        onAddReference={async (sourcePath) => {
+          if (detailFor) await chars.addReference(detailFor.id, sourcePath)
+        }}
+        onRemoveReference={async (refPath) => {
+          if (detailFor) await chars.removeReference(detailFor.id, refPath)
+        }}
+      />
     </div>
   )
 }
